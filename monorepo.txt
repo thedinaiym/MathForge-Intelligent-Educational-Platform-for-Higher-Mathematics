@@ -1,0 +1,51 @@
+mathforge/
+├── .gitignore               # Игнорируем venv, node_modules, .env и временные PDF
+├── README.md                # Главное описание проекта (см. ниже)
+├── docker-compose.yml       # (Опционально) Для запуска базы и бэкенда одной командой
+├── requirements.txt         # Список библиотек Python (fastapi, sympy, jinja2...)
+├── /docs                    # Папка для самой дипломной записки
+│   ├── diagrams/            # UML диаграммы, схемы БД
+│   └── thesis_draft.docx    # Текст диплома
+│
+├── /backend                 # Серверная часть (Python + FastAPI)
+│   ├── main.py              # Точка входа (запуск сервера)
+│   ├── config.py            # Настройки (БД, API ключи HuggingFace)
+│   ├── /app
+│   │   ├── /api             # API эндпоинты (ручки)
+│   │   │   ├── auth.py      # Вход/Регистрация
+│   │   │   ├── tasks.py     # Получение списка задач
+│   │   │   └── generate.py  # Эндпоинт генерации PDF
+│   │   │
+│   │   ├── /core            # Ядро генерации (Твоя главная фишка!)
+│   │   │   ├── /algebra     # Генераторы для лин. алгебры
+│   │   │   │   ├── matrix.py
+│   │   │   │   └── systems.py
+│   │   │   ├── /calculus    # Генераторы для матана
+│   │   │   │   ├── integrals.py
+│   │   │   │   └── limits.py
+│   │   │   └── utils.py     # Помощники (например, проверка на простые числа)
+│   │   │
+│   │   ├── /services        # Внешние интеграции
+│   │   │   ├── ai_client.py # Клиент Hugging Face (текстовая генерация)
+│   │   │   └── pdf_maker.py # Скрипт сборки PDF из LaTeX
+│   │   │
+│   │   ├── /templates       # Шаблоны
+│   │   │   └── /tex         # .tex файлы (скелеты для LaTeX)
+│   │   │       ├── exam_template.tex
+│   │   │       └── answer_key_template.tex
+│   │   │
+│   │   └── /models          # ORM модели для Базы Данных
+│   │       └── database.py
+│
+├── /frontend                # Клиентская часть (React/Vue)
+│   ├── package.json
+│   ├── public/
+│   └── /src
+│       ├── /components      # Кнопки, формы, карточки задач
+│       ├── /pages           # Страницы (Home, Builder, Login)
+│       ├── /api             # Запросы к твоему бэкенду
+│       └── App.jsx
+│
+└── /lean_proofs             # Формальная верификация (код на Lean 4)
+    ├── LinearAlgebra.lean   # Доказательства теорем по алгебре
+    └── Calculus.lean        # Доказательства теорем по матану
