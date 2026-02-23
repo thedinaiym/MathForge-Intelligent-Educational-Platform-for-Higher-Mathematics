@@ -1,201 +1,105 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { Calculator, BookOpen, Download, Plus, Loader2, Trash2, FileText } from 'lucide-react';
-import 'katex/dist/katex.min.css';
-import { BlockMath } from 'react-katex';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { Calculator, Home, GraduationCap, Briefcase, LogOut, LogIn, User } from 'lucide-react';
+import { supabase } from './lib/supabase';
+import { useTranslation } from 'react-i18next';
 
-function App() {
-  const [tasks, setTasks] = useState([]); // Список всех задач в текущем варианте
-  const [loading, setLoading] = useState(false); // Загрузка для генерации задачи
-  const [pdfLoading, setPdfLoading] = useState(false); // Загрузка для генерации PDF
+import HomePage from './pages/HomePage';
+import StudentAnalyzer from './pages/StudentAnalyzer';
+import TeacherGenerator from './pages/TeacherGenerator';
+import AuthPage from './pages/AuthPage';
+import ProfilePage from './pages/ProfilePage';
 
-  // 1. Функция добавления новой матрицы с бэкенда
-  const addMatrixTask = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/tasks/generate-matrix');
-      const newTask = { ...response.data, id: Date.now() };
-      setTasks([...tasks, newTask]);
-    } catch (error) {
-      console.error("Ошибка API:", error);
-      alert("Не удалось получить задачу. Проверь работу бэкенда (uvicorn).");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function App() {
+  const location = useLocation();
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { t, i18n } = useTranslation();
 
-  // 2. Функция удаления задачи из списка
-  const removeTask = (id) => {
-    setTasks(tasks.filter(t => t.id !== id));
-  };
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
+    return () => subscription.unsubscribe();
+  }, []);
 
-  // 3. Функция скачивания PDF
-  const downloadPDF = async () => {
-    if (tasks.length === 0) {
-      alert("Добавьте хотя бы одну задачу в список!");
-      return;
-    }
+  const handleLogout = async () => await supabase.auth.signOut();
+  const changeLanguage = (lng) => i18n.changeLanguage(lng);
 
-    setPdfLoading(true);
-    try {
-      const response = await axios.post(
-        'http://127.0.0.1:8000/api/tasks/export-pdf',
-        tasks,
-        { responseType: 'blob' } // Указываем, что ждем файл
-      );
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-amber-500 font-bold text-xl">Загрузка MathForge...</div>;
 
-      // Создаем временную ссылку для скачивания файла
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `MathForge_Variant_${Date.now()}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Ошибка при генерации PDF:", error);
-      alert("Ошибка при создании PDF. Проверь бэкенд.");
-    } finally {
-      setPdfLoading(false);
-    }
-  };
+  const userRole = session?.user?.user_metadata?.role;
 
   return (
-    <div className="min-h-screen flex bg-gray-50 text-slate-900 font-sans">
-      {/* Sidebar - Боковая панель */}
-      <aside className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col fixed h-full shadow-sm">
-        <div className="flex items-center gap-2 mb-10 text-blue-600">
-          <Calculator size={32} strokeWidth={2.5} />
-          <span className="text-2xl font-black tracking-tighter text-slate-800">MathForge</span>
-        </div>
+    <div className="min-h-screen flex bg-[#fdfaf6] text-slate-900 font-sans">
+      <aside className="w-72 bg-white border-r border-amber-100 p-8 flex flex-col fixed h-full shadow-lg shadow-amber-50 z-10">
+        <Link to="/" className="flex items-center gap-3 mb-12 text-amber-500 hover:text-orange-500 transition-colors">
+          <div className="p-2 bg-amber-100 rounded-xl"><Calculator size={28} strokeWidth={2.5} className="text-amber-600" /></div>
+          <span className="text-3xl font-black tracking-tighter text-slate-800">MathForge</span>
+        </Link>
         
-        <nav className="space-y-2">
-          <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest">Рабочая область</div>
-          <button className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-xl font-bold transition-all">
-            <FileText size={20} /> Задачи
-          </button>
+        <nav className="space-y-3 flex-1">
+          <div className="px-4 py-2 text-xs font-black text-amber-300 uppercase tracking-widest">{t('menu')}</div>
+          
+          <Link to="/" className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${location.pathname === '/' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'}`}>
+            <Home size={22} /> {t('home')}
+          </Link>
+          
+          {session && userRole !== 'teacher' && (
+            <Link to="/student" className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${location.pathname === '/student' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'}`}>
+              <GraduationCap size={22} /> {t('analyzer')}
+            </Link>
+          )}
+
+          {session && userRole === 'teacher' && (
+            <Link to="/teacher" className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${location.pathname === '/teacher' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'}`}>
+              <Briefcase size={22} /> {t('generator')}
+            </Link>
+          )}
+
+          {session && (
+            <Link to="/profile" className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all mt-6 ${location.pathname === '/profile' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'}`}>
+              <User size={22} /> {t('profile')}
+            </Link>
+          )}
         </nav>
 
-        <div className="mt-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
-          <p className="text-xs text-slate-400 font-medium italic">Дипломный проект: Кузница математических задач</p>
+        <div className="flex justify-center gap-2 mb-8 mt-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
+          <button onClick={() => changeLanguage('ru')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${i18n.language === 'ru' ? 'bg-white text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>RU</button>
+          <button onClick={() => changeLanguage('en')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${i18n.language === 'en' ? 'bg-white text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>EN</button>
+          <button onClick={() => changeLanguage('ky')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${i18n.language === 'ky' ? 'bg-white text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KY</button>
+        </div>
+
+        <div className="pt-6 border-t border-amber-100">
+          {session ? (
+            <div className="flex flex-col gap-4">
+              <div className="px-4 py-3 bg-white rounded-2xl flex items-center gap-3 border border-amber-100 shadow-sm">
+                <img src={session.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-amber-200" />
+                <div className="flex flex-col overflow-hidden">
+                  <span className="text-sm font-bold truncate text-slate-800">{session.user.user_metadata.full_name || session.user.email.split('@')[0]}</span>
+                  <span className="text-[10px] uppercase font-black text-amber-500 tracking-wider">{userRole === 'teacher' ? t('role_teacher') : t('role_student')}</span>
+                </div>
+              </div>
+              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl font-bold transition-all">
+                <LogOut size={18} /> {t('logout')}
+              </button>
+            </div>
+          ) : (
+            <Link to="/auth" className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-amber-500 text-white rounded-2xl font-bold hover:bg-orange-500 transition-all shadow-lg shadow-amber-200">
+              <LogIn size={20} /> {t('login')}
+            </Link>
+          )}
         </div>
       </aside>
 
-      {/* Main Content - Основная область */}
-      <main className="flex-1 ml-64 p-10">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Конструктор вариантов</h1>
-            <p className="text-slate-500 mt-2 text-lg">Сформируйте список заданий для печати</p>
-          </div>
-          
-          <button 
-            onClick={downloadPDF}
-            disabled={tasks.length === 0 || pdfLoading}
-            className="flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl hover:bg-slate-800 transition shadow-xl font-bold disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {pdfLoading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-            Скачать PDF {tasks.length > 0 && `(${tasks.length})`}
-          </button>
-        </header>
-
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
-          
-          {/* Секция выбора модулей */}
-          <div className="xl:col-span-4 space-y-6">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-2">Доступные темы</h3>
-            
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <Calculator size={24} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xl">Линейная алгебра</h4>
-                  <p className="text-slate-400 text-xs font-medium uppercase">Матрицы 2x2</p>
-                </div>
-              </div>
-              
-              <button 
-                onClick={addMatrixTask}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100 disabled:bg-slate-300"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : <Plus size={20} />}
-                Сгенерировать задачу
-              </button>
-            </div>
-          </div>
-
-          {/* Секция предпросмотра варианта */}
-          <div className="xl:col-span-8 space-y-6">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-2">Предпросмотр варианта</h3>
-            
-            {tasks.length === 0 ? (
-              <div className="h-80 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center text-slate-400 bg-white/50 backdrop-blur-sm">
-                <div className="bg-slate-100 p-4 rounded-full mb-4">
-                  <Plus size={32} />
-                </div>
-                <p className="text-xl font-bold">Список задач пуст</p>
-                <p className="text-sm opacity-70 mt-1">Выберите тему слева, чтобы добавить задание</p>
-              </div>
-            ) : (
-              <div className="space-y-6 animate-in fade-in duration-500">
-                {tasks.map((task, index) => (
-                  <div key={task.id} className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm relative group hover:shadow-md transition-shadow">
-                    
-                    {/* Кнопка удаления */}
-                    <button 
-                      onClick={() => removeTask(task.id)}
-                      className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                      title="Удалить из списка"
-                    >
-                      <Trash2 size={22} />
-                    </button>
-
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter">
-                        Задание {index + 1}
-                      </span>
-                    </div>
-
-                    <h5 className="font-bold text-xl mb-4 text-slate-800">{task.title}</h5>
-                    <p className="text-slate-600 mb-8 leading-relaxed">{task.task_text}</p>
-                    
-                    <div className="bg-slate-50 p-8 rounded-2xl border border-slate-100 flex justify-center items-center shadow-inner overflow-x-auto">
-                      <BlockMath math={task.matrix_latex} />
-                    </div>
-
-                    {/* Скрытое решение */}
-                    <div className="mt-8 pt-6 border-t border-slate-50">
-                      <details className="group">
-                        <summary className="list-none flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-400 hover:text-blue-600 transition-colors">
-                          <span className="w-2 h-2 bg-slate-300 rounded-full group-open:bg-blue-600"></span>
-                          Показать ответ и решение
-                        </summary>
-                        <div className="mt-4 p-6 bg-green-50 rounded-2xl text-green-800 border border-green-100 animate-in slide-in-from-top-2 duration-300">
-                          <div className="flex flex-col gap-2">
-                            <p className="flex items-center gap-2">
-                              <span className="font-black">ОТВЕТ:</span> 
-                              <span className="text-lg font-mono tracking-wider">{task.answer}</span>
-                            </p>
-                            <p className="text-sm font-medium opacity-80 italic">
-                              Ход решения: {task.step_by_step}
-                            </p>
-                          </div>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      <main className="flex-1 ml-72 p-12 relative flex flex-col min-h-screen">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/auth" element={session ? <Navigate to="/profile" /> : <AuthPage />} />
+          <Route path="/profile" element={session ? <ProfilePage session={session} /> : <Navigate to="/auth" />} />
+          <Route path="/student" element={session ? <StudentAnalyzer /> : <Navigate to="/auth" />} />
+          <Route path="/teacher" element={session ? <TeacherGenerator /> : <Navigate to="/auth" />} />
+        </Routes>
       </main>
     </div>
   );
 }
-
-export default App;
