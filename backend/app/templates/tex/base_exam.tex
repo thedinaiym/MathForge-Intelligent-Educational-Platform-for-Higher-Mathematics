@@ -1,0 +1,39 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+
+\begin{document}
+
+{% for var in variants %}
+\begin{center}
+    \Large\textbf{ {{ title }} } \\
+    \large Вариант № {{ var.variant_num }}
+\end{center}
+\vspace{1cm}
+
+{% for task in var.tasks %}
+\textbf{Задание {{ loop.index }}:} {{ task.title }} \\
+\[ {{ task.condition_latex }} \]
+\vspace{1.5cm}
+{% endfor %}
+
+\newpage
+{% endfor %}
+
+% Раздел с ответами (печатается на последней странице)
+\begin{center}
+    \Large\textbf{Ключи для проверки (Учитель)}
+\end{center}
+
+{% for var_num, ans_list in answers.items() %}
+\textbf{Вариант {{ var_num }}:}
+\begin{enumerate}
+    {% for ans in ans_list %}
+        \item {{ ans }}
+    {% endfor %}
+\end{enumerate}
+\vspace{0.5cm}
+{% endfor %}
+
+\end{document}

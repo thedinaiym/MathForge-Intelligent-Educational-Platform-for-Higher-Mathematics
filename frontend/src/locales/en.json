@@ -1,0 +1,153 @@
+{
+  "nav": {
+    "home": "Home",
+    "profile": "Profile",
+    "billing": "Tokens",
+    "student": "My Studies",
+    "teacher": "Generate Tasks",
+    "library": "Library",
+    "admin": "Dataset",
+    "logout": "Logout"
+  },
+  "auth": {
+    "title": "Welcome to MathForge",
+    "subtitle": "Neuro-Symbolic math learning for university students",
+    "loginWithGithub": "Continue with GitHub",
+    "loginWithGoogle": "Continue with Google",
+    "alreadyHaveAccount": "Already have an account? Sign in"
+  },
+  "home": {
+    "hero": "Neuro-Symbolic Math Learning",
+    "heroSubtitle": "University-level Linear Algebra and Calculus with AI-powered feedback and zero hallucinations",
+    "getStarted": "Get Started",
+    "learnMore": "Learn More",
+    "features": {
+      "neuroSymbolic": "Neuro-Symbolic Engine",
+      "neuroSymbolicDesc": "SymPy computes 100% correct math — Groq explains mistakes in plain language",
+      "multilingual": "3-Language Support",
+      "multilingualDesc": "Full support for English, Russian, and Kyrgyz",
+      "tokenBilling": "Token System",
+      "tokenBillingDesc": "Pay only for analyses you run with our transparent token-based system",
+      "pdfGeneration": "PDF Worksheets",
+      "pdfGenerationDesc": "Teachers generate LaTeX-compiled worksheets with unique task variants"
+    }
+  },
+  "student": {
+    "title": "Analyze My Solution",
+    "stepsTitle": "Enter Your Solution Steps",
+    "stepsSubtitle": "Type each step below. SymPy checks every transition — zero AI hallucinations.",
+    "stepLabel": "Step {{n}}",
+    "stepPlaceholder": "e.g. 2x + 4 = 10",
+    "addStep": "Add Step",
+    "removeStep": "Remove",
+    "minSteps": "Please enter at least 2 steps to analyze.",
+    "analyze": "Analyze Steps",
+    "analyzing": "Analyzing...",
+    "tryAgain": "Edit steps and retry",
+    "reset": "Start over",
+    "clear": "Clear",
+    "result": {
+      "correct": "All steps are correct! Well done.",
+      "correctDetail": "Every algebraic transition was verified by SymPy.",
+      "errorFound": "Error detected at Step {{step}}",
+      "errorDetail": "The transition to this step is mathematically incorrect.",
+      "hint": "Hint from AI Tutor",
+      "noHint": "No hint available (API key not configured)."
+    },
+    "tabs": {
+      "manual": "Manual Entry",
+      "photo": "Upload Photo"
+    },
+    "phases": {
+      "scanning": "Scanning handwriting…",
+      "verifying": "Verifying math…",
+      "hint": "Generating hint…"
+    },
+    "uploadPrompt": "Drag & drop your photo here, or click to select",
+    "uploadHint": "JPEG, PNG or WebP · max 10 MB",
+    "ocrFailed": "Could not extract steps from the image. Please ensure the handwriting is clear, or switch to Manual Entry.",
+    "tokenWarning": "You have {{count}} token(s) remaining",
+    "noTokens": "You have no tokens. Please top up your balance."
+  },
+  "teacher": {
+    "title": "Generate PDF Worksheet",
+    "category": "Topic Category",
+    "difficulty": "Difficulty",
+    "questionCount": "Number of Questions",
+    "questionCountHint": "Maximum 50 questions per worksheet",
+    "generate": "Generate PDF",
+    "generating": "Generating...",
+    "download": "Download PDF",
+    "difficulty_easy": "Easy",
+    "difficulty_medium": "Medium",
+    "difficulty_hard": "Hard"
+  },
+  "library": {
+    "title": "Textbook Library",
+    "tabParse": "Parse Book",
+    "tabGenerate": "Generate Task",
+    "upload": "Upload Textbook PDF",
+    "parse": "Parse with AI",
+    "parsing": "Parsing...",
+    "templates": "Extracted Templates",
+    "generateSample": "Generate Sample Task",
+    "generatingSample": "Generating...",
+    "condition": "Condition",
+    "answer": "Answer",
+    "noTemplates": "No templates found for this topic and difficulty."
+  },
+  "profile": {
+    "title": "My Profile",
+    "name": "Full Name",
+    "role": "Role",
+    "role_student": "Student",
+    "role_teacher": "Teacher",
+    "role_admin": "Administrator",
+    "locale": "Interface Language",
+    "save": "Save Profile",
+    "saved": "Saved successfully!"
+  },
+  "billing": {
+    "title": "Token Balance",
+    "balance": "Current Balance",
+    "tokens": "tokens",
+    "tokensShort": "tok",
+    "topUp": "Top Up Balance",
+    "buy": "Buy Now",
+    "popular": "Best Value",
+    "purchased": "Added!",
+    "costTitle": "Service Costs",
+    "costOcr": "Solution check (OCR / manual)",
+    "costPdf": "PDF worksheet generation",
+    "costFree": "Free tokens on signup",
+    "history": "Transaction History",
+    "noHistory": "No transactions yet"
+  },
+  "admin": {
+    "title": "Dataset Manager",
+    "uploadBook": "Upload Textbook",
+    "parseBook": "Parse with AI",
+    "templates": "Task Templates",
+    "approve": "Approve",
+    "reject": "Reject",
+    "test": "Test Template",
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred. Please try again.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "noData": "No data available"
+  }
+}
