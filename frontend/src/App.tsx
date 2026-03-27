@@ -44,6 +44,7 @@ function ProtectedRoute({
 }
 
 /** Listens to Supabase auth events and syncs with our backend DB */
+/** Listens to Supabase auth events and syncs with our backend DB */
 function AuthSync() {
   const { setUser, logout, setInitialized } = useAuthStore()
   const navigate = useNavigate()
@@ -67,48 +68,49 @@ function AuthSync() {
             })
             setUser(data)
           } catch {
-            // registration failed — keep any persisted user
+            // registration failed
           }
         } else if (status === 401) {
-          // Token invalid — clear stale persisted user so they must re-login
           logout()
         }
-        // For network errors (backend down): keep existing persisted user from localStorage
       }
     }
 
-    // Subscribe first so we don't miss the SIGNED_IN event from code exchange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const displayName = session?.user.user_metadata?.full_name
-          ?? session?.user.email
+        const displayName = session?.user.user_metadata?.full_name 
+          ?? session?.user.email 
           ?? ''
 
         if (event === 'INITIAL_SESSION') {
-          // Always fires first — unblock ProtectedRoute immediately
+          if (session) {
+            // ИСПРАВЛЕНИЕ: Ждем получения профиля ПЕРЕД снятием загрузочного экрана
+            await syncUser(displayName) 
+          }
           initialized = true
-          setInitialized()
-          // Sync user in background (don't block the page)
-          if (session) syncUser(displayName)
+          setInitialized() // Только теперь роутер проверит наличие юзера
           return
         }
 
         if (event === 'SIGNED_IN' && session) {
+          // ИСПРАВЛЕНИЕ: Ждем синхронизации
+          await syncUser(displayName)
+          
           if (!initialized) {
-            // SIGNED_IN fired before INITIAL_SESSION (rare) — unblock immediately
             initialized = true
             setInitialized()
-            syncUser(displayName)   // non-blocking: page shows with persisted user
           } else {
-            // Fresh OAuth callback — sync then navigate
-            await syncUser(displayName)
+            // Это редирект после успешного логина
             navigate('/app/profile', { replace: true })
           }
         }
 
         if (event === 'SIGNED_OUT') {
           logout()
-          if (!initialized) { initialized = true; setInitialized() }
+          if (!initialized) {
+            initialized = true
+            setInitialized()
+          }
         }
       },
     )
@@ -118,7 +120,6 @@ function AuthSync() {
 
   return null
 }
-
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>

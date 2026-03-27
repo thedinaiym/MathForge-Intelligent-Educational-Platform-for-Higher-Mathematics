@@ -12,7 +12,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://127.0.0.1:5173",
+        "https://math-forge-intelligent-educational.vercel.app",
+        "https://www.mathforgeapp.com",# <-- ДОБАВЬ ЭТУ СТРОКУ (без слеша в конце!)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

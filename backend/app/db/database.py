@@ -38,11 +38,11 @@ engine = create_async_engine(
     _url,
     echo=False,
     pool_pre_ping=True,
+    pool_recycle=300, # <--- ДОБАВИЛИ ВОТ ЭТУ СТРОКУ (пересоздавать каждые 5 минут)
     # Pooler (pgbouncer) requires prepared statements to be disabled
     connect_args={"statement_cache_size": 0} if _is_pooler else {},
     **({} if _is_pooler else {"pool_size": 5, "max_overflow": 10}),
 )
-
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
