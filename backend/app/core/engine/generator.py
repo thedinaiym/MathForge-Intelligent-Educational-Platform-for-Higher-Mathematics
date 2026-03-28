@@ -17,6 +17,22 @@ class TaskGenerator:
     """
     Deterministic task generator driven entirely by template_json from the DB.
     Uses SymPy for 100% correct math — no LLM involved in solving.
+
+    Two template modes are supported:
+
+    ── Equation mode  (sympy_expr contains variable 'x') ─────────────────────
+      sympy_expr encodes the LHS of "expr = 0".
+      After parameter substitution, the generator solves for x.
+      Example: "A*x**2 + B*x + C"
+
+    ── Computation mode  (sympy_expr is a parameter-only formula) ────────────
+      sympy_expr evaluates to a scalar once parameters are substituted.
+      The answer IS the evaluated value (no equation to solve).
+      Example: "A*D - B*C"  →  determinant of 2×2 matrix
+
+    In both modes question_text is rendered by calling
+        text_template.format(expr=..., **coefficients)
+    so templates may use either {expr} or {A}/{B}/… placeholders freely.
     """
 
     @staticmethod
@@ -24,62 +40,71 @@ class TaskGenerator:
         """
         Generate a single task from a template.
 
-        Args:
-            template_json: The JSONB template from task_templates table.
-            locale: One of 'en', 'ru', 'kg'.
-
-        Returns:
-            dict with keys:
-              - topic (str)
-              - question_text (str): Localized human-readable prompt.
-              - condition_latex (str): The expression in LaTeX, e.g. "x^2 + 3x - 4 = 0"
-              - answer_latex (str): LaTeX-formatted solution(s).
-              - solutions (list): Raw SymPy solution objects.
-              - coefficients (dict): The sampled integer coefficients.
+        Returns a dict with keys:
+          topic, question_text, condition_latex, answer_latex,
+          solutions, coefficients
         """
-        topic = template_json.get("topic", "unknown")
+        topic: str = template_json.get("topic", "unknown")
         sympy_expr_str: str = template_json["sympy_expr"]
         ranges: dict[str, list[int]] = template_json["ranges"]
         constraints: list[str] = template_json.get("constraints", [])
         texts: dict[str, str] = template_json.get("texts", {})
 
-        # Step 1: sample integer coefficients that satisfy all constraints.
+        # ── Step 1: sample integer coefficients ──────────────────────────────
         coeffs = TaskGenerator._sample_coefficients(ranges, constraints)
 
-        # Step 2: parse the symbolic expression (coefficients are still symbols here).
+        # ── Step 2: parse and substitute ─────────────────────────────────────
         raw_expr = sp.sympify(sympy_expr_str)
-
-        # Step 3: substitute sampled integer values for coefficient symbols.
         subs_dict = {sp.Symbol(k): v for k, v in coeffs.items()}
         final_expr = raw_expr.subs(subs_dict)
 
-        # Step 4: identify the solve variable — symbols remaining after substitution.
+        # ── Step 3: detect mode by remaining free symbols ────────────────────
         free_syms = final_expr.free_symbols
+
         if free_syms:
-            # Sort alphabetically for determinism; typically this is 'x'.
+            # ── Equation mode ─────────────────────────────────────────────────
             solve_var = sorted(free_syms, key=lambda s: s.name)[0]
+            solutions: list = sp.solve(final_expr, solve_var)
+
+            expr_latex = sp.latex(final_expr)
+            condition_latex = f"{expr_latex} = 0"
+
+            if solutions:
+                parts = [
+                    f"{sp.latex(solve_var)} = {sp.latex(sol)}"
+                    for sol in solutions
+                ]
+                answer_latex = r",\quad ".join(parts)
+            else:
+                answer_latex = r"\text{Нет вещественных решений}"
+
         else:
-            # Degenerate case: expression fully collapsed to a constant.
-            solve_var = sp.Symbol("x")
+            # ── Computation mode ──────────────────────────────────────────────
+            # The expression fully collapses to a number; that number IS the answer.
+            value = sp.simplify(final_expr)
+            solutions = [value]
 
-        # Step 5: solve equation final_expr = 0 with SymPy (exact, no numerics).
-        solutions: list = sp.solve(final_expr, solve_var)
+            # Show the un-substituted formula (with letters) as the "question expr"
+            # and the evaluated number as the answer.
+            expr_latex = sp.latex(raw_expr)          # e.g. "A D - B C"
+            condition_latex = sp.latex(raw_expr.subs(subs_dict))  # actual number
+            answer_latex = sp.latex(value)
 
-        # Step 6: build LaTeX strings.
-        expr_latex = sp.latex(final_expr)
-        condition_latex = f"{expr_latex} = 0"
-
-        if solutions:
-            answer_parts = [
-                f"{sp.latex(solve_var)} = {sp.latex(sol)}" for sol in solutions
-            ]
-            answer_latex = r",\quad ".join(answer_parts)
-        else:
-            answer_latex = r"\text{No real solutions}"
-
-        # Step 7: format localized question text.
-        text_template = texts.get(locale) or texts.get("en") or "Solve: {expr} = 0"
-        question_text = text_template.format(expr=f"${expr_latex}$")
+        # ── Step 4: build localised question text ────────────────────────────
+        # Templates may use any combination of:
+        #   {expr}  → substituted LaTeX expression
+        #   {A}, {B}, … → individual sampled coefficients
+        text_template = (
+            texts.get(locale)
+            or texts.get("ru")
+            or texts.get("en")
+            or "Вычислите: {expr}"
+        )
+        try:
+            question_text = text_template.format(expr=f"${expr_latex}$", **coeffs)
+        except (KeyError, IndexError):
+            # Fallback: replace unknown placeholders gracefully
+            question_text = text_template.format(expr=f"${expr_latex}$")
 
         return {
             "topic": topic,
@@ -103,13 +128,6 @@ class TaskGenerator:
             label_A         — LaTeX display string for Column A (optional)
             label_B         — LaTeX display string for Column B (optional)
             given_template  — Python .format()-compatible condition string (optional)
-
-        Returns:
-            dict with keys:
-                problem_latex   — LaTeX string for the problem statement
-                answer          — one of "А", "Б", "В", "Г"
-                solution_latex  — step-by-step LaTeX solution string
-                coefficients    — sampled integer values dict
         """
         expr_A_str: str = template_json["sympy_expr_A"]
         expr_B_str: str = template_json["sympy_expr_B"]
@@ -171,25 +189,14 @@ class TaskGenerator:
     def _sample_coefficients(
         ranges: dict[str, list[int]],
         constraints: list[str],
-        max_attempts: int = 100,
+        max_attempts: int = 200,
     ) -> dict[str, int]:
         """
         Sample random integer coefficients satisfying all SymPy constraints.
 
-        Args:
-            ranges: Mapping of symbol name → [lo, hi] (inclusive).
-            constraints: List of SymPy-parseable inequality strings, e.g. "B**2 - 4*A*C >= 0".
-            max_attempts: Retry limit before giving up.
-
-        Returns:
-            Dict mapping symbol name → sampled integer value.
-
-        Raises:
-            ValueError: If no valid combination is found within max_attempts.
+        Raises ValueError if no valid combination is found within max_attempts.
         """
         sym_map = {k: sp.Symbol(k) for k in ranges}
-
-        # Pre-parse constraint expressions once for efficiency.
         parsed_constraints = [sp.sympify(c) for c in constraints]
 
         for _ in range(max_attempts):
@@ -200,6 +207,6 @@ class TaskGenerator:
                 return vals
 
         raise ValueError(
-            f"Could not find valid coefficients satisfying constraints after "
-            f"{max_attempts} attempts: {constraints}"
+            f"Could not find valid coefficients after {max_attempts} attempts. "
+            f"Constraints: {constraints}"
         )
