@@ -31,9 +31,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const handleLogout = async () => {
     onClose()
-    await supabase.auth.signOut()
-    logout()
-    navigate('/')
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // network error — clear local state anyway
+    } finally {
+      logout()
+      navigate('/auth', { replace: true })
+    }
   }
 
   const handleLocaleChange = (locale: string) => {
