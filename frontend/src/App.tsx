@@ -33,8 +33,12 @@ function ProtectedRoute({
   roles?: string[]
 }) {
   const { user, isInitialized } = useAuthStore()
-  // Wait for session check to finish before deciding to redirect
-  if (!isInitialized) {
+
+  // Show spinner ONLY when we have no user data at all — i.e. a completely
+  // fresh session where we don't yet know if the visitor is authenticated.
+  // If `user` is already in the persisted store, render immediately and let
+  // AuthSync validate the token in the background (it will logout() on 401).
+  if (!isInitialized && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
