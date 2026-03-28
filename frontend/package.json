@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@pixiv/three-vrm": "^3.5.1",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@supabase/supabase-js": "^2.97.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "^5.76.2",
@@ -28,6 +31,7 @@
     "react-katex": "^3.1.0",
     "react-router-dom": "^7.13.0",
     "recharts": "^3.7.0",
+    "three": "^0.169.0",
     "yup": "^1.6.1",
     "zustand": "^5.0.5"
   },
@@ -37,6 +41,7 @@
     "@types/react": "^19.2.5",
     "@types/react-calendar-heatmap": "^1.9.0",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.39.1",

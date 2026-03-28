@@ -36,10 +36,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, type RootState } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { GLTFLoader, type GLTF, type GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import {
   VRM,
   VRMExpressionPresetName,
@@ -199,7 +199,7 @@ function VRMAvatar({
   const audioCtxRef   = useRef<AudioContext | null>(null)
   const analyserRef   = useRef<AnalyserNode | null>(null)
   const sourceRef     = useRef<AudioBufferSourceNode | null>(null)
-  const freqDataRef   = useRef<Uint8Array | null>(null)
+  const freqDataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const isSpeakingRef = useRef(false)
 
   // ── Smoothed mouth value for lerping ─────────────────────────────────────
@@ -214,11 +214,11 @@ function VRMAvatar({
     let cancelled = false
 
     const loader = new GLTFLoader()
-    loader.register((parser) => new VRMLoaderPlugin(parser))
+    loader.register((parser: GLTFParser) => new VRMLoaderPlugin(parser))
 
     loader.load(
       modelPath,
-      (gltf) => {
+      (gltf: GLTF) => {
         if (cancelled) return
 
         const loadedVrm: VRM | undefined = gltf.userData.vrm
@@ -235,7 +235,7 @@ function VRMAvatar({
         onModelReady?.()
       },
       undefined,
-      (err) => {
+      (err: unknown) => {
         if (!cancelled) {
           console.error('[AvatarTutor] VRM load error:', err)
           onLoadError?.(`Could not load ${modelPath}`)
@@ -281,7 +281,7 @@ function VRMAvatar({
       analyser.fftSize        = 512    // 256 frequency bins
       analyser.smoothingTimeConstant = 0.7
       analyserRef.current  = analyser
-      freqDataRef.current  = new Uint8Array(analyser.frequencyBinCount)
+      freqDataRef.current  = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
 
       // Source → Analyser → Destination (speakers)
       const source   = ctx.createBufferSource()
@@ -322,7 +322,7 @@ function VRMAvatar({
   }, [])
 
   // ── useFrame — animation loop (lip-sync + idle) ───────────────────────────
-  useFrame((_, delta) => {
+  useFrame((_state: RootState, delta: number) => {
     const v = vrm ?? vrmRef.current
     if (!v) return
 
