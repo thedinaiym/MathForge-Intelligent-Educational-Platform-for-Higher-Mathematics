@@ -319,7 +319,7 @@ export default function Dashboard() {
             {/* Error state */}
             {adaptive.isError && (
               <p className="mt-4 text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-2">
-                {(adaptive.error as Error).message}
+                {(adaptive.error as any)?.response?.data?.detail ?? (adaptive.error as Error).message}
               </p>
             )}
 

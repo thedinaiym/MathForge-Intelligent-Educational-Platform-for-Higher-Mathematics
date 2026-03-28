@@ -109,7 +109,8 @@
       "categorySubtitle": "Select a practice mode",
       "explore": "Explore",
       "select": "Select",
-      "loadError": "Could not load subjects. Please refresh."
+      "loadError": "Could not load subjects. Please refresh.",
+      "noSubjects": "No subjects found. Contact an admin to add categories."
     },
     "ort": {
       "choosePartTitle": "Choose ORT Part",

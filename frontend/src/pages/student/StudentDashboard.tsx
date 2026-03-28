@@ -405,7 +405,7 @@ export default function StudentDashboard() {
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({})
   const [revealed, setRevealed] = useState(false)
 
-  const ortMutation = useMutation<OrtResponse, Error, OrtPart>({
+  const ortMutation = useMutation<OrtResponse, unknown, OrtPart>({
     mutationFn: async (part) => {
       const { data } = await api.post<OrtResponse>('/ort/generate', {
         part,
@@ -497,7 +497,14 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          {!loadingCats && !catsError && (
+          {!loadingCats && !catsError && categories.length === 0 && (
+            <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl text-center text-slate-500 text-sm">
+              <Brain size={32} className="mx-auto mb-2 opacity-30" />
+              {t('student.dashboard.noSubjects')}
+            </div>
+          )}
+
+          {!loadingCats && !catsError && categories.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {categories.map((cat) => {
                 const style = getCategoryStyle(cat.name)

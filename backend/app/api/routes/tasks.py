@@ -115,6 +115,29 @@ async def _generate_tasks(
     return generated
 
 
+# ── Route: list all templates (admin dataset page) ────────────────────────────
+
+@router.get("/templates/list")
+async def list_all_templates(
+    locale: str = Depends(get_locale),
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all task templates — used by the Admin Dataset page."""
+    result = await db.execute(select(TaskTemplate))
+    templates = result.scalars().all()
+    return [
+        {
+            "id": str(t.id),
+            "title": t.get_title(locale),
+            "difficulty": t.difficulty,
+            "is_active": t.is_active,
+            "topic": t.template_json.get("topic", ""),
+        }
+        for t in templates
+    ]
+
+
 # ── Route: list categories ────────────────────────────────────────────────────
 
 @router.get("/categories", response_model=list[CategoryResponse])
@@ -267,7 +290,8 @@ async def generate_adaptive_tasks(
       2. Query student_tracking sorted by mastery_level ASC → take top 3 weakest.
          If no tracking data yet, fall back to the first 3 available categories.
       3. Distribute `count` tasks across the weak categories.
-      4. Return JSON tasks (no PDF compilation).
+      4. If no templates found at requested difficulty → fall back to 'easy'.
+      5. Return JSON tasks (no PDF compilation).
 
     Accessible to all authenticated roles (students use it for practice,
     teachers for preview).
@@ -287,40 +311,65 @@ async def generate_adaptive_tasks(
     if weak_trackings:
         weak_category_ids = [t.category_id for t in weak_trackings]
     else:
-        # No tracking data yet — pick first 3 available categories as a cold start
+        # No tracking data yet — cold start: use first 3 available categories
         cat_result = await db.execute(select(Category).limit(3))
-        categories = cat_result.scalars().all()
-        weak_category_ids = [cat.id for cat in categories]
+        first_cats = cat_result.scalars().all()
+        weak_category_ids = [cat.id for cat in first_cats]
 
     if not weak_category_ids:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No categories found. Please seed the database with categories and templates.",
+            detail="Категории не найдены. Обратитесь к администратору для заполнения базы данных.",
         )
 
     # Step 3 — Generate tasks distributed across weak categories
     per_cat = max(1, payload.count // len(weak_category_ids))
     all_tasks: list[dict] = []
 
-    for cat_id in weak_category_ids:
-        if len(all_tasks) >= payload.count:
-            break
-        sub_payload = GenerateTaskRequest(
-            category_id=cat_id,
-            difficulty=payload.difficulty,
-            count=per_cat,
-        )
-        try:
-            tasks = await _generate_tasks(sub_payload, locale, db)
-            all_tasks.extend(tasks)
-        except HTTPException:
-            continue  # category has no templates — skip silently
+    async def _try_generate(cat_ids: list, difficulty: str) -> list[dict]:
+        """Try to generate tasks for each category at the given difficulty."""
+        results: list[dict] = []
+        for cat_id in cat_ids:
+            if len(results) >= payload.count:
+                break
+            try:
+                tasks = await _generate_tasks(
+                    GenerateTaskRequest(
+                        category_id=cat_id,
+                        difficulty=difficulty,
+                        count=per_cat,
+                    ),
+                    locale,
+                    db,
+                )
+                results.extend(tasks)
+            except HTTPException:
+                continue  # no templates for this category+difficulty — skip
+        return results
+
+    # First pass: requested difficulty on weak categories
+    all_tasks = await _try_generate(weak_category_ids, payload.difficulty)
+
+    # Second pass: if nothing found, try ALL categories at requested difficulty
+    if not all_tasks:
+        all_cats_result = await db.execute(select(Category))
+        all_cat_ids = [c.id for c in all_cats_result.scalars().all()
+                       if c.id not in weak_category_ids]
+        all_tasks = await _try_generate(all_cat_ids, payload.difficulty)
+
+    # Third pass: difficulty fallback — try easy across ALL categories
+    if not all_tasks and payload.difficulty != "easy":
+        all_cats_result2 = await db.execute(select(Category))
+        all_cat_ids2 = [c.id for c in all_cats_result2.scalars().all()]
+        all_tasks = await _try_generate(all_cat_ids2, "easy")
 
     if not all_tasks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No templates found for your weak categories. "
-                   "Ask an admin to add task templates.",
+            detail=(
+                "Не найдено шаблонов задач. "
+                "Обратитесь к преподавателю или администратору."
+            ),
         )
 
     return GenerateTaskResponse(
