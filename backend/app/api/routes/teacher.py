@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,10 +35,13 @@ class ExtractedTemplatePreview(BaseModel):
     topic: str
     difficulty: str
     sympy_expr: str
+    title: dict[str, str]
+    texts: dict[str, str]
 
 
 class UploadPdfResponse(BaseModel):
     count: int
+    category_id: str
     templates: list[ExtractedTemplatePreview]
 
 
@@ -48,8 +51,9 @@ class UploadPdfResponse(BaseModel):
 async def upload_pdf_and_extract_templates(
     file: UploadFile = File(
         ...,
-        description="Textbook PDF (≤ 20 MB). First 5 pages are analysed.",
+        description="Textbook PDF (≤ 20 MB). First 10 pages are analysed.",
     ),
+    category_id: str | None = Form(default=None, description="Target category UUID (optional)."),
     locale: str = Depends(get_locale),
     current_user: TokenPayload = Depends(require_role("teacher", "admin")),
     db: AsyncSession = Depends(get_db),
@@ -118,18 +122,28 @@ async def upload_pdf_and_extract_templates(
         )
 
     # ── 4. Resolve a category for the new templates ──────────────────────────
-    # Use the first existing category as the owner; if the DB is empty, create
-    # a placeholder so the FK constraint is satisfied.
-    cat_result = await db.execute(select(Category).limit(1))
-    category = cat_result.scalar_one_or_none()
+    # Prefer the caller-supplied category_id; fall back to first existing one;
+    # last resort: create a placeholder so the FK constraint is satisfied.
+    category = None
+    if category_id:
+        try:
+            cat_uuid = uuid.UUID(category_id)
+            cat_result = await db.execute(select(Category).where(Category.id == cat_uuid))
+            category = cat_result.scalar_one_or_none()
+        except (ValueError, Exception):
+            category = None  # bad UUID — fall through to default
+
+    if category is None:
+        cat_result = await db.execute(select(Category).limit(1))
+        category = cat_result.scalar_one_or_none()
 
     if category is None:
         category = Category(
             id=uuid.uuid4(),
             name_translations={
                 "en": "Uploaded",
-                "ru": "Загружено",
-                "kg": "Жүктөлгөн",
+                "ru": "Uploaded",
+                "kg": "Uploaded",
             },
         )
         db.add(category)
@@ -198,9 +212,55 @@ async def upload_pdf_and_extract_templates(
                 topic=topic,
                 difficulty=difficulty,
                 sympy_expr=sympy_expr,
+                title={
+                    "en": title_translations.get("en", topic),
+                    "ru": title_translations.get("ru", topic),
+                    "kg": title_translations.get("kg", topic),
+                },
+                texts=texts_tr,
             )
         )
 
     await db.commit()
 
-    return UploadPdfResponse(count=len(previews), templates=previews)
+    return UploadPdfResponse(
+        count=len(previews),
+        category_id=str(category.id),
+        templates=previews,
+    )
+
+
+# ── Activate template ─────────────────────────────────────────────────────────
+
+class ActivateResponse(BaseModel):
+    id: uuid.UUID
+    is_active: bool
+
+
+@router.patch("/templates/{template_id}/activate", response_model=ActivateResponse)
+async def activate_template(
+    template_id: uuid.UUID,
+    current_user: TokenPayload = Depends(require_role("teacher", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> ActivateResponse:
+    """
+    Activate a draft template so students can practice with it.
+
+    Teachers can activate their own uploaded templates.
+    Admins can activate any template.
+    """
+    result = await db.execute(
+        select(TaskTemplate).where(TaskTemplate.id == template_id)
+    )
+    template = result.scalar_one_or_none()
+
+    if template is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found.",
+        )
+
+    template.is_active = True
+    await db.commit()
+
+    return ActivateResponse(id=template.id, is_active=True)

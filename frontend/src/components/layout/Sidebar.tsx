@@ -11,6 +11,7 @@ import {
   LogOut,
   Globe,
   BookMarked,
+  BookCheck,
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -101,9 +102,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </NavLink>
 
         {user?.role === 'student' && (
-          <NavLink to="/app/student" className={navLinkClass} onClick={onClose}>
-            <GraduationCap size={18} /> {t('nav.student')}
-          </NavLink>
+          <>
+            <NavLink to="/app/student" className={navLinkClass} onClick={onClose}>
+              <GraduationCap size={18} /> {t('nav.student')}
+            </NavLink>
+            <NavLink to="/app/student/homework" className={navLinkClass} onClick={onClose}>
+              <BookCheck size={18} /> {t('nav.homework')}
+            </NavLink>
+          </>
         )}
 
         {(user?.role === 'teacher' || user?.role === 'admin') && (

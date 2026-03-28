@@ -22,20 +22,25 @@ Design note:
 """
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from groq import AsyncGroq
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_locale, require_role
+from app.core.config import settings
 from app.core.engine.arbitrator import Arbitrator
+from app.core.engine.generator import TaskGenerator
 from app.core.engine.llm_agent import LLMHintAgent
 from app.core.engine.vision_agent import VisionAgent
 from app.db.database import get_db
-from app.db.models import ActivityLog, BillingAccount, StudentTracking
+from app.db.models import ActivityLog, BillingAccount, StudentTracking, TaskTemplate
 from app.models.schemas import AnalyzeRequest, AnalyzeResponse, TokenPayload
 
 router = APIRouter()
@@ -43,11 +48,31 @@ router = APIRouter()
 # 0.5 tokens per analysis call
 TOKEN_COST_ANALYZE: float = 0.5
 
+# 1 token for the full homework checker (Vision + LLM tutor + task generation)
+TOKEN_COST_HOMEWORK: float = 1.0
+
 # Mastery deltas applied to student_tracking after each attempt
 _MASTERY_GAIN: float = 5.0   # correct answer
 _MASTERY_LOSS: float = 3.0   # error found
 _MASTERY_MAX: float = 100.0
 _MASTERY_MIN: float = 0.0
+
+# ── Homework checker response schemas ─────────────────────────────────────────
+
+class HomeworkPracticeTask(BaseModel):
+    question_text: str
+    condition_latex: str
+    answer_latex: str
+    topic: str
+
+
+class HomeworkCheckResponse(BaseModel):
+    is_correct: bool
+    error_step_index: int | None
+    feedback: str
+    weak_topic: str | None
+    extracted_steps: list[str]
+    practice_tasks: list[HomeworkPracticeTask]
 
 
 # ── Step B: Atomic token deduction ───────────────────────────────────────────
@@ -316,3 +341,244 @@ async def analyze_solution_image(
 
     # ── D → F. Arbitrator + hint + tracking ──────────────────────────────
     return await _run_pipeline(steps, locale, user_id, db, category_id)
+
+
+# ── Route 3: Homework Checker ─────────────────────────────────────────────────
+# Separate from the standard analyze-image:
+#   • Deducts 1 token (vs 0.5 for plain OCR)
+#   • Calls a friendly "math tutor" LLM prompt that explains the *concept*
+#   • Generates 3 practice tasks matching the identified weak topic
+# ─────────────────────────────────────────────────────────────────────────────
+
+_TUTOR_MODEL = "llama-3.3-70b-versatile"
+
+_LANG_NOTE = {
+    "en": "Respond in English.",
+    "ru": "Отвечай на русском языке.",
+    "kg": "Кыргызча жооп бер.",
+}
+
+_TUTOR_SYSTEM = """\
+You are a friendly, encouraging math tutor for university students.
+A student has uploaded their handwritten math solution. Analyze it carefully.
+
+Output ONLY a valid JSON object — no markdown, no code fences, no commentary.
+
+Schema:
+{{
+  "is_correct": true | false,
+  "error_step_index": null | <0-based integer>,
+  "feedback": "<friendly explanation — praise if correct, explain the concept if wrong>",
+  "weak_topic": null | "<snake_case topic, e.g. quadratic_equation, integration_by_parts>"
+}}
+
+Rules:
+1. Output ONLY raw JSON.
+2. If is_correct is true, error_step_index must be null.
+3. {lang_note}
+4. feedback must explain WHY the step is wrong conceptually, not just say "incorrect".
+5. weak_topic is the math concept the student needs to drill (null if fully correct).
+6. error_step_index is 0-based (Step 1 → 0, Step 2 → 1, …).
+"""
+
+
+async def _call_tutor_llm(steps: list[str], locale: str) -> dict:
+    """Call Groq Llama-3 in JSON mode to analyse the solution as a math tutor."""
+    if not settings.groq_api_key:
+        return {
+            "is_correct": False,
+            "error_step_index": None,
+            "feedback": "AI tutor unavailable — GROQ_API_KEY not configured.",
+            "weak_topic": None,
+        }
+
+    steps_text = "\n".join(f"Step {i + 1}: {s}" for i, s in enumerate(steps))
+    lang_note = _LANG_NOTE.get(locale, _LANG_NOTE["ru"])
+
+    client = AsyncGroq(api_key=settings.groq_api_key)
+    response = await client.chat.completions.create(
+        model=_TUTOR_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": _TUTOR_SYSTEM.format(lang_note=lang_note),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Here is the student's solution (extracted by OCR):\n\n"
+                    + steps_text
+                    + "\n\nAnalyze it and return the JSON."
+                ),
+            },
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
+
+    raw = response.choices[0].message.content.strip()
+    parsed = json.loads(raw)
+
+    return {
+        "is_correct": bool(parsed.get("is_correct", False)),
+        "error_step_index": parsed.get("error_step_index"),
+        "feedback": str(parsed.get("feedback", "")),
+        "weak_topic": parsed.get("weak_topic") or None,
+    }
+
+
+async def _find_practice_templates(
+    weak_topic: str | None,
+    db: AsyncSession,
+    count: int = 3,
+) -> list[TaskTemplate]:
+    """
+    Find up to `count` active templates matching the weak topic.
+    Falls back to random active templates if no topic match is found.
+    """
+    if weak_topic:
+        # Normalise underscores to % so "quadratic_equation" matches "quadratic equation"
+        like_pat = f"%{weak_topic.replace('_', '%')}%"
+        result = await db.execute(
+            select(TaskTemplate)
+            .where(TaskTemplate.is_active == True)  # noqa: E712
+            .where(TaskTemplate.template_json["topic"].astext.ilike(like_pat))
+            .limit(count)
+        )
+        templates = list(result.scalars().all())
+        if templates:
+            return templates
+
+    # Fallback — any active templates in random order
+    result = await db.execute(
+        select(TaskTemplate)
+        .where(TaskTemplate.is_active == True)  # noqa: E712
+        .order_by(func.random())
+        .limit(count)
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/check-homework", response_model=HomeworkCheckResponse)
+async def check_homework(
+    image: UploadFile = File(
+        ...,
+        description="Photo of the student's handwritten homework (JPEG/PNG/WebP ≤ 10 MB).",
+    ),
+    locale: str = Depends(get_locale),
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> HomeworkCheckResponse:
+    """
+    Full homework-checker pipeline.
+
+    Steps:
+      A. Validate image content-type and size.
+      B. Deduct 1 token atomically (402 if insufficient).
+      C. Vision OCR — Groq vision model extracts solution steps.
+      D. Tutor LLM  — Groq Llama-3 analyses the steps, identifies the error
+                       concept, and writes a friendly explanation.
+      E. Practice generation — find 3 templates matching the weak topic, generate
+                       unique problems with TaskGenerator (SymPy).
+      F. Activity log — increment the daily heatmap counter.
+    """
+    # ── A. Validate content type ──────────────────────────────────────────
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    content_type = (image.content_type or "").lower()
+    if content_type not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported image type '{content_type}'. Use JPEG, PNG, or WebP.",
+        )
+
+    # ── A. Read & size-check ──────────────────────────────────────────────
+    image_bytes = await image.read()
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image exceeds 10 MB limit.",
+        )
+
+    user_id = uuid.UUID(current_user.sub)
+
+    # ── B. Token deduction ────────────────────────────────────────────────
+    result = await db.execute(
+        select(BillingAccount).where(BillingAccount.user_id == user_id)
+    )
+    account = result.scalar_one_or_none()
+    if account is None or account.token_balance < TOKEN_COST_HOMEWORK:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient token balance. 1 token required for homework checking.",
+        )
+    account.token_balance = round(account.token_balance - TOKEN_COST_HOMEWORK, 2)
+    await db.commit()
+
+    # ── C. Vision OCR ─────────────────────────────────────────────────────
+    try:
+        steps = await VisionAgent.extract_steps(image_bytes, mime_type=content_type)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Could not extract steps from the image. "
+                "Please ensure the handwriting is clear and well-lit. "
+                f"Detail: {exc}"
+            ),
+        ) from exc
+
+    if not steps:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No solution steps found in the image. Please upload a clearer photo.",
+        )
+
+    # ── D. LLM Tutor analysis ─────────────────────────────────────────────
+    try:
+        analysis = await _call_tutor_llm(steps, locale)
+    except Exception:
+        # Tutor failure must not block the student — return safe defaults
+        analysis = {
+            "is_correct": False,
+            "error_step_index": None,
+            "feedback": "AI tutor is temporarily unavailable. Please try again shortly.",
+            "weak_topic": None,
+        }
+
+    # ── E. Practice task generation ───────────────────────────────────────
+    practice_tasks: list[HomeworkPracticeTask] = []
+    try:
+        templates = await _find_practice_templates(analysis["weak_topic"], db, count=3)
+        for tpl in templates:
+            tj = tpl.template_json
+            if not tj:
+                continue
+            try:
+                generated = TaskGenerator.generate(tj, locale)
+                practice_tasks.append(
+                    HomeworkPracticeTask(
+                        question_text=generated["question_text"],
+                        condition_latex=generated["condition_latex"],
+                        answer_latex=generated["answer_latex"],
+                        topic=generated["topic"],
+                    )
+                )
+            except Exception:
+                continue  # skip broken templates silently
+    except Exception:
+        pass  # practice tasks are best-effort — never fail the response
+
+    # ── F. Activity log ───────────────────────────────────────────────────
+    try:
+        await _log_activity(user_id, db)
+    except Exception:
+        pass
+
+    return HomeworkCheckResponse(
+        is_correct=analysis["is_correct"],
+        error_step_index=analysis["error_step_index"],
+        feedback=analysis["feedback"],
+        weak_topic=analysis["weak_topic"],
+        extracted_steps=steps,
+        practice_tasks=practice_tasks,
+    )

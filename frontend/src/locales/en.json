@@ -13,7 +13,8 @@
     "tutors": "Tutors",
     "videos": "Videos",
     "news": "News",
-    "tagline": "Smart Math Platform"
+    "tagline": "Smart Math Platform",
+    "homework": "Homework Checker"
   },
   "auth": {
     "title": "Welcome to MathForge",
@@ -204,8 +205,12 @@
     "draftNote": "pending admin approval",
     "phaseUploading": "Uploading PDF…",
     "phaseExtracting": "Extracting text from document…",
-    "phaseAnalyzing": "Analyzing with AI…",
-    "phaseSaving": "Saving templates…"
+    "phaseAnalyzing": "Analyzing document and generating dataset…",
+    "phaseSaving": "Saving templates…",
+    "activate": "Activate",
+    "activated": "Activated",
+    "parseTeacherOnly": "This feature is for teachers and admins only.",
+    "parseTeacherOnlyHint": "Switch to the \"Generate Task\" tab to try sample problems."
   },
   "profile": {
     "title": "My Profile",
@@ -371,6 +376,32 @@
     "b2Title": "Thomas' Calculus",
     "b3Title": "Calculus: Early Transcendentals",
     "b4Title": "Linear Algebra and Its Applications"
+  },
+  "homework": {
+    "title": "Homework Checker",
+    "subtitle": "Upload a photo of your handwritten solution. AI will find errors, explain the concept, and give you practice problems.",
+    "upload": "Drop your homework photo here, or click to select",
+    "uploadHint": "JPEG, PNG or WebP · max 10 MB",
+    "analyze": "Check My Work",
+    "reset": "Check another",
+    "tokenCost": "Costs 1 token per check",
+    "noTokens": "You need at least 1 token to use this feature. Please top up your balance.",
+    "phases": {
+      "scanning": "Scanning handwriting…",
+      "analyzing": "Analyzing your solution…",
+      "finding": "Finding practice problems…"
+    },
+    "result": {
+      "correct": "All steps are correct!",
+      "errorFound": "Error found at Step {{step}}",
+      "weakTopic": "Practice topic",
+      "extractedSteps": "Your extracted solution",
+      "practiceTitle": "Practice Problems",
+      "practiceSubtitle": "Generated for your weak topic:",
+      "problem": "Problem",
+      "showAnswer": "Show Answer",
+      "noTasks": "No practice problems available for this topic yet."
+    }
   },
   "common": {
     "loading": "Loading...",

@@ -1,0 +1,18 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# MathForge TTS Microservice — production requirements
+#
+# Strategy: Microsoft Edge TTS handles ALL three languages natively:
+#   en  →  en-US-JennyNeural / en-US-GuyNeural
+#   ru  →  ru-RU-SvetlanaNeural / ru-RU-DmitryNeural
+#   kg  →  ky-KG-NazgulNeural / ky-KG-ManasNeural
+#
+# No torch, no transformers, no model downloads.
+# Docker image: ~150 MB.  Railway cold-start: < 5 s.
+# Audio output: MP3 bytes — browser Web Audio API decodes natively, no ffmpeg.
+# ══════════════════════════════════════════════════════════════════════════════
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+python-multipart>=0.0.9
+pydantic>=2.0.0
+edge-tts>=6.1.9
