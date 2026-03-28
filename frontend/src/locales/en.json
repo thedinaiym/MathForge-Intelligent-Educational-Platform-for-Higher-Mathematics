@@ -110,7 +110,7 @@
       "explore": "Explore",
       "select": "Select",
       "loadError": "Could not load subjects. Please refresh.",
-      "noSubjects": "No subjects found. Contact an admin to add categories."
+      "noSubjects": "Subjects loading… If the list stays empty, please refresh the page."
     },
     "ort": {
       "choosePartTitle": "Choose ORT Part",

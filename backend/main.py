@@ -2,12 +2,49 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag
 from app.db.database import Base, engine, AsyncSessionLocal
 from app.db.seed import seed_database
 from app.api import router_admin
 
 logger = logging.getLogger(__name__)
+
+
+# ── Schema migration ──────────────────────────────────────────────────────────
+
+async def _migrate_stale_schema() -> None:
+    """
+    Drop tables whose schema no longer matches the current ORM models.
+
+    The early admin-router phase created `task_templates` with a legacy schema
+    (columns: topic_id, expression, lean_proof …).  SQLAlchemy's create_all
+    skips existing tables, so those stale columns block every INSERT.
+
+    Detection: look for `topic_id` — a column that only exists in the old schema.
+    If found, drop `task_templates` (and `categories` which may also be absent
+    or malformed) so create_all can rebuild them correctly.
+
+    This runs BEFORE create_all on every startup; it is a no-op once the tables
+    have the correct schema.
+    """
+    async with engine.begin() as conn:
+        # Check for the old-schema sentinel column
+        result = await conn.execute(text("""
+            SELECT 1
+            FROM   information_schema.columns
+            WHERE  table_name  = 'task_templates'
+            AND    column_name = 'topic_id'
+            LIMIT  1
+        """))
+        if result.fetchone() is None:
+            return  # schema is already correct — nothing to do
+
+        print("🔄 Stale task_templates schema detected — dropping legacy tables...")
+        # CASCADE drops any foreign-key dependents automatically
+        await conn.execute(text("DROP TABLE IF EXISTS task_templates CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS categories     CASCADE"))
+        print("✅ Legacy tables dropped — create_all will rebuild them.")
 
 app = FastAPI(
     title="MathForge API",
@@ -32,16 +69,31 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    """Create all tables on first run, then seed initial data."""
+    """
+    0. Migrate stale schema (drops legacy task_templates if present).
+    1. Create tables — idempotent CREATE TABLE IF NOT EXISTS.
+    2. Upsert seed data — always runs, safe to repeat.
+    3. Index templates into Qdrant for RAG search.
+    """
+    # ── Step 0: schema migration ──────────────────────────────────────────
+    try:
+        await _migrate_stale_schema()
+    except Exception as exc:
+        print(f"⚠️  Schema migration failed: {exc}")
+        # Not fatal — try to continue; create_all may still work
+        return
+
+    # ── Step 1: tables ────────────────────────────────────────────────────
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database tables verified/created.")
+        print("✅ DB tables verified/created.")
     except Exception as exc:
-        print(f"⚠️  DB connection failed on startup: {exc}")
-        print("   API will start — fix SUPABASE_DB_URL in backend/.env then restart.")
-        return
+        print(f"⚠️  DB connection failed: {exc}")
+        print("   Fix SUPABASE_DB_URL in backend/.env and restart.")
+        return  # can't continue without DB
 
+    # ── Step 2: seed (always — upsert is safe) ────────────────────────────
     try:
         async with AsyncSessionLocal() as db:
             await seed_database(db)
