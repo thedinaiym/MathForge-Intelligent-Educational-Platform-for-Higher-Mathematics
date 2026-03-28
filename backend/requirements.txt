@@ -10,7 +10,9 @@ supabase==2.10.0
 sympy==1.13.3
 langchain==0.3.13
 langchain-groq==0.2.3
+langchain-huggingface>=0.1.0
 groq==0.13.1
+sentence-transformers>=2.7.0
 python-multipart==0.0.20
 httpx>=0.26,<0.28
 qdrant-client==1.12.2

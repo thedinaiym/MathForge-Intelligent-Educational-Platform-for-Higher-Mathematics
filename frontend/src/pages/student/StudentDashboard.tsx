@@ -547,7 +547,12 @@ export default function StudentDashboard() {
       {/* ORT error */}
       {ortMutation.isError && (
         <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <p className="text-sm text-red-600 mb-3">{t('student.ort.generateError')}</p>
+          <p className="text-sm text-red-600 mb-1 font-medium">{t('student.ort.generateError')}</p>
+          <p className="text-xs text-red-500 mb-3">
+            {(ortMutation.error as any)?.response?.data?.detail
+              ?? (ortMutation.error as any)?.message
+              ?? t('student.ort.generateError')}
+          </p>
           <button
             onClick={handleReset}
             className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-800 font-medium"

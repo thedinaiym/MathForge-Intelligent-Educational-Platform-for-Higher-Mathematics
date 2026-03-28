@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort
+from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag
 from app.db.database import Base, engine, AsyncSessionLocal
 from app.db.seed import seed_database
 from app.api import router_admin
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="MathForge API",
@@ -44,6 +48,20 @@ async def startup():
     except Exception as exc:
         print(f"⚠️  Seeding failed (non-fatal): {exc}")
 
+    # Auto-index templates into Qdrant after seeding
+    try:
+        from sqlalchemy import select
+        from app.db.models import TaskTemplate
+        from app.services.rag_service import rag_service
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(TaskTemplate).where(TaskTemplate.is_active.is_(True)))
+            templates = result.scalars().all()
+            if templates:
+                indexed = await rag_service.index_templates(list(templates))
+                print(f"✅ RAG: indexed {indexed} templates into Qdrant.")
+    except Exception as exc:
+        print(f"⚠️  RAG indexing failed (non-fatal): {exc}")
+
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
@@ -53,6 +71,7 @@ app.include_router(billing.router, prefix="/api/billing", tags=["billing"])
 app.include_router(router_admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(teacher.router, prefix="/api/teachers", tags=["teachers"])
 app.include_router(ort.router, prefix="/api/ort", tags=["ort"])
+app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
 
 
 @app.get("/")
