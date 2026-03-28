@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import { Camera, FileText, RotateCcw, UploadCloud, X } from 'lucide-react'
 import api from '../../lib/axios'
@@ -48,7 +48,8 @@ function usePhaseLabel(isActive: boolean, phases: string[]): string {
 
 export default function StudentAnalyzer() {
   const { t } = useTranslation()
-  const { tokenBalance, decrementToken } = useUIStore()
+  const { tokenBalance } = useUIStore()
+  const queryClient = useQueryClient()
 
   const {
     inputMode,
@@ -75,7 +76,8 @@ export default function StudentAnalyzer() {
 
   // ── Manual mode mutation ─────────────────────────────────────────────────
   const filledSteps = steps.filter((s) => s.trim().length > 0)
-  const canSubmitManual = filledSteps.length >= 2 && tokenBalance >= 0.5
+  // Backend deducts 1 token per call — guard matches server cost exactly
+  const canSubmitManual = filledSteps.length >= 2 && tokenBalance >= 1
 
   const manualMutation = useMutation<AnalysisResult, Error>({
     mutationFn: async () => {
@@ -86,12 +88,13 @@ export default function StudentAnalyzer() {
     },
     onSuccess: (data) => {
       setAnalysisResult(data)
-      decrementToken(0.5)
+      // Refetch from server so UI balance always reflects the true DB value
+      queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
     },
   })
 
   // ── Image mode mutation ──────────────────────────────────────────────────
-  const canSubmitImage = imageFile !== null && tokenBalance >= 0.5
+  const canSubmitImage = imageFile !== null && tokenBalance >= 1
 
   const imageMutation = useMutation<AnalysisResult, Error>({
     mutationFn: async () => {
@@ -104,7 +107,8 @@ export default function StudentAnalyzer() {
     },
     onSuccess: (data) => {
       setAnalysisResult(data)
-      decrementToken(0.5)
+      // Refetch from server so UI balance always reflects the true DB value
+      queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
     },
   })
 

@@ -8,11 +8,11 @@
  *          POST /api/tasks/generate → display the generated SymPy task
  *          (LaTeX condition + answer rendered with KaTeX)
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDropzone } from 'react-dropzone'
 import { useMutation } from '@tanstack/react-query'
-import { Upload, FileText, FlaskConical } from 'lucide-react'
+import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
 import MathRenderer from '../../components/math/MathRenderer'
@@ -22,9 +22,15 @@ type Tab = 'parse' | 'generate'
 type Difficulty = 'easy' | 'medium' | 'hard'
 
 interface ParsedTemplate {
+  saved_id: string
   topic: string
   sympy_expr: string
-  difficulty: string
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
+interface UploadPdfResponse {
+  count: number
+  templates: ParsedTemplate[]
 }
 
 interface GeneratedTask {
@@ -61,6 +67,33 @@ export default function LibraryPage() {
   )
 }
 
+// ── Loading phases for the RAG pipeline ──────────────────────────────────────
+
+const PARSE_PHASES = [
+  'library.phaseUploading',
+  'library.phaseExtracting',
+  'library.phaseAnalyzing',
+  'library.phaseSaving',
+]
+
+function useParsePhase(isPending: boolean) {
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    if (!isPending) { setPhase(0); return }
+    const id = setInterval(() => setPhase((p) => Math.min(p + 1, PARSE_PHASES.length - 1)), 2500)
+    return () => clearInterval(id)
+  }, [isPending])
+  return phase
+}
+
+// ── Difficulty badge ──────────────────────────────────────────────────────────
+
+const DIFF_COLOUR: Record<string, string> = {
+  easy:   'bg-emerald-100 text-emerald-700',
+  medium: 'bg-amber-100 text-amber-700',
+  hard:   'bg-red-100 text-red-700',
+}
+
 // ── Tab: Parse Book ───────────────────────────────────────────────────────────
 
 function ParseBookTab() {
@@ -69,7 +102,7 @@ function ParseBookTab() {
   const [templates, setTemplates] = useState<ParsedTemplate[]>([])
 
   const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) setFile(accepted[0])
+    if (accepted[0]) { setFile(accepted[0]); setTemplates([]) }
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -78,62 +111,104 @@ function ParseBookTab() {
     maxFiles: 1,
   })
 
-  const mutation = useMutation<{ templates: ParsedTemplate[] }>({
+  const mutation = useMutation<UploadPdfResponse, Error>({
     mutationFn: async () => {
       if (!file) throw new Error('No file selected')
       const form = new FormData()
       form.append('file', file)
-      const { data } = await api.post('/admin/parse-book', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      // Let Axios set the Content-Type with boundary automatically
+      const { data } = await api.post<UploadPdfResponse>('/teachers/upload-pdf', form)
       return data
     },
     onSuccess: (data) => setTemplates(data.templates ?? []),
   })
 
+  const phase = useParsePhase(mutation.isPending)
+
+  // Human-readable error from API detail field
+  const errorMsg: string = (() => {
+    if (!mutation.error) return ''
+    const detail = (mutation.error as any)?.response?.data?.detail
+    return typeof detail === 'string' ? detail : t('common.error')
+  })()
+
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Drop zone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 ${
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
           isDragActive
             ? 'border-amber-400 bg-amber-50'
-            : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
+            : file
+              ? 'border-emerald-300 bg-emerald-50/40'
+              : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
         }`}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center gap-2 text-slate-400">
-          <FileText size={32} />
-          <p className="text-sm">{file ? file.name : t('library.upload')}</p>
+        <div className="flex flex-col items-center gap-2">
+          {file
+            ? <><CheckCircle size={28} className="text-emerald-500" /><p className="text-sm font-medium text-emerald-700">{file.name}</p><p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p></>
+            : <><FileText size={28} className="text-slate-300" /><p className="text-sm text-slate-400">{t('library.upload')}</p><p className="text-xs text-slate-300">PDF · max 20 MB</p></>
+          }
         </div>
       </div>
 
+      {/* Parse button */}
       <Button
         onClick={() => mutation.mutate()}
         loading={mutation.isPending}
-        disabled={!file}
-        className="mb-6"
+        disabled={!file || mutation.isPending}
+        className="w-full justify-center"
       >
         <Upload size={15} />
-        {mutation.isPending ? t('library.parsing') : t('library.parse')}
+        {mutation.isPending
+          ? t(PARSE_PHASES[phase])
+          : t('library.parse')}
       </Button>
 
+      {/* Error */}
+      {mutation.isError && (
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-red-700">{errorMsg}</p>
+        </div>
+      )}
+
+      {/* Results */}
       {templates.length > 0 && (
         <div>
-          <h2 className="text-base font-semibold text-slate-700 mb-3">{t('library.templates')}</h2>
-          <div className="space-y-2">
-            {templates.map((tpl, i) => (
-              <div key={i} className="bg-white rounded-lg p-4 border border-slate-100 text-sm">
-                <p className="font-medium text-slate-700">{tpl.topic}</p>
-                <p className="text-slate-400 font-mono text-xs mt-1">{tpl.sympy_expr}</p>
+          <div className="flex items-center gap-2 mb-3">
+            <Layers size={16} className="text-amber-500" />
+            <h2 className="text-base font-semibold text-slate-700">
+              {t('library.templates')}
+              <span className="ml-2 text-xs font-normal text-slate-400">
+                ({templates.length} {t('library.extracted')}) · {t('library.draftNote')}
+              </span>
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {templates.map((tpl) => (
+              <div
+                key={tpl.saved_id}
+                className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-slate-700 text-sm">
+                    {tpl.topic.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${DIFF_COLOUR[tpl.difficulty] ?? 'bg-slate-100 text-slate-600'}`}>
+                    {tpl.difficulty}
+                  </span>
+                </div>
+                <code className="block text-xs font-mono text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 overflow-x-auto">
+                  {tpl.sympy_expr}
+                </code>
+                <p className="text-xs text-slate-400 font-mono">id: {tpl.saved_id}</p>
               </div>
             ))}
           </div>
         </div>
-      )}
-
-      {mutation.isError && (
-        <p className="text-sm text-red-500">{t('common.error')}</p>
       )}
     </div>
   )

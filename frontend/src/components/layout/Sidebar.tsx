@@ -1,15 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Home,
   User,
   Coins,
   BookOpen,
   GraduationCap,
+  LayoutDashboard,
   Library,
   Database,
   LogOut,
   Globe,
+  BookMarked,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../lib/supabase'
@@ -50,12 +51,20 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <NavLink to="/app/dashboard" className={navLinkClass}>
+          <LayoutDashboard size={18} /> {t('nav.dashboard')}
+        </NavLink>
+
         <NavLink to="/app/profile" className={navLinkClass}>
           <User size={18} /> {t('nav.profile')}
         </NavLink>
 
         <NavLink to="/app/billing" className={navLinkClass}>
           <Coins size={18} /> {t('nav.billing')}
+        </NavLink>
+
+        <NavLink to="/app/math-library" className={navLinkClass}>
+          <BookMarked size={18} /> {t('nav.mathLibrary')}
         </NavLink>
 
         {user?.role === 'student' && (

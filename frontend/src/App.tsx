@@ -15,6 +15,8 @@ import StudentAnalyzer from './pages/student/StudentAnalyzer'
 import TeacherGenerator from './pages/teacher/TeacherGenerator'
 import LibraryPage from './pages/teacher/LibraryPage'
 import AdminDataset from './pages/admin/AdminDataset'
+import MathLibraryPage from './pages/shared/MathLibraryPage'
+import Dashboard from './pages/shared/Dashboard'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,7 +45,6 @@ function ProtectedRoute({
   return <>{children}</>
 }
 
-/** Listens to Supabase auth events and syncs with our backend DB */
 /** Listens to Supabase auth events and syncs with our backend DB */
 function AuthSync() {
   const { setUser, logout, setInitialized } = useAuthStore()
@@ -78,29 +79,33 @@ function AuthSync() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const displayName = session?.user.user_metadata?.full_name 
-          ?? session?.user.email 
+        const displayName = session?.user.user_metadata?.full_name
+          ?? session?.user.email
           ?? ''
 
         if (event === 'INITIAL_SESSION') {
           if (session) {
-            // ИСПРАВЛЕНИЕ: Ждем получения профиля ПЕРЕД снятием загрузочного экрана
-            await syncUser(displayName) 
+            // Normal page load with an existing session — wait for profile before showing app
+            await syncUser(displayName)
+          } else if (window.location.hash.includes('access_token')) {
+            // OAuth redirect: Supabase hasn't exchanged the hash token yet.
+            // INITIAL_SESSION fires with session=null here, followed immediately by
+            // SIGNED_IN once the token is processed. Defer initialization to that event
+            // so ProtectedRoute never sees user=null while the token is valid.
+            return
           }
           initialized = true
-          setInitialized() // Только теперь роутер проверит наличие юзера
+          setInitialized()
           return
         }
 
         if (event === 'SIGNED_IN' && session) {
-          // ИСПРАВЛЕНИЕ: Ждем синхронизации
+          // Covers both OAuth redirects (initialized=false) and re-logins (initialized=true)
           await syncUser(displayName)
-          
           if (!initialized) {
             initialized = true
             setInitialized()
           } else {
-            // Это редирект после успешного логина
             navigate('/app/profile', { replace: true })
           }
         }
@@ -169,6 +174,12 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Dashboard — accessible to all authenticated users */}
+          <Route path="dashboard" element={<Dashboard />} />
+
+          {/* Math Library — accessible to all authenticated users */}
+          <Route path="math-library" element={<MathLibraryPage />} />
 
           {/* Admin */}
           <Route
