@@ -416,7 +416,9 @@ export default function TeacherGenerator() {
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm font-semibold text-red-700 mb-1">{t('common.error')}</p>
           <p className="text-xs text-red-500 font-mono break-all">
-            {(mutation.error as Error)?.message ?? 'Unknown error'}
+            {(mutation.error as any)?.response?.data?.detail
+              ?? (mutation.error as Error)?.message
+              ?? 'Unknown error'}
           </p>
           <button onClick={handleReset} className="mt-2 text-xs text-red-600 hover:text-red-800 underline">
             {t('common.back')}
