@@ -101,7 +101,51 @@
     "uploadHint": "JPEG, PNG or WebP · max 10 MB",
     "ocrFailed": "Could not extract steps from the image. Please ensure the handwriting is clear, or switch to Manual Entry.",
     "tokenWarning": "You have {{count}} token(s) remaining",
-    "noTokens": "You have no tokens. Please top up your balance."
+    "noTokens": "You have no tokens. Please top up your balance.",
+    "dashboard": {
+      "title": "What do you want to improve?",
+      "subtitle": "Select a subject to start practicing",
+      "ortSubtitle": "ORT Math practice — choose a part",
+      "categorySubtitle": "Select a practice mode",
+      "explore": "Explore",
+      "select": "Select",
+      "loadError": "Could not load subjects. Please refresh."
+    },
+    "ort": {
+      "choosePartTitle": "Choose ORT Part",
+      "choosePartSubtitle": "The ORT exam has two parts — comparison and multiple choice",
+      "part1Title": "Part I — Comparison",
+      "part1Desc": "Compare Column A and Column B",
+      "part2Title": "Part II — Multiple Choice",
+      "part2Desc": "Choose one correct answer from five options",
+      "startPractice": "Start practice",
+      "compiling1": "Compiling your unique test with SymPy…",
+      "compiling2": "Generating random coefficients…",
+      "compiling3": "Verifying constraints…",
+      "generateError": "Failed to generate problems. Please try again.",
+      "problemCount": "{{count}} problems",
+      "newSet": "New set",
+      "showAnswers": "Show Answers",
+      "answersRevealed": "Answers shown above. Study the correct ones!",
+      "instruction1Header": "Instructions",
+      "instruction1Body": "Compare Column A and Column B. A — if A > B; B — if A < B; C — if A = B; D — if it cannot be determined.",
+      "instruction2Header": "Instructions",
+      "instruction2Body": "Choose one correct answer from five options (А–Д).",
+      "colA": "Column A",
+      "colB": "Column B"
+    },
+    "category": {
+      "description": "Practice problems are generated dynamically by SymPy with unique random coefficients each time.",
+      "goToAnalyzer": "Go to Step Analyzer"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "easyDesc": "Simple expressions, small integers",
+      "medium": "Medium",
+      "mediumDesc": "Multi-step problems",
+      "hard": "Hard",
+      "hardDesc": "Complex constraints and large ranges"
+    }
   },
   "teacher": {
     "title": "Generate PDF Worksheet",

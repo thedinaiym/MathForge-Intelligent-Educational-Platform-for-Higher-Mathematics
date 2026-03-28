@@ -12,6 +12,7 @@ import AuthPage from './pages/auth/AuthPage'
 import ProfilePage from './pages/shared/ProfilePage'
 import BillingPage from './pages/shared/BillingPage'
 import StudentAnalyzer from './pages/student/StudentAnalyzer'
+import StudentDashboard from './pages/student/StudentDashboard'
 import TeacherGenerator from './pages/teacher/TeacherGenerator'
 import LibraryPage from './pages/teacher/LibraryPage'
 import AdminDataset from './pages/admin/AdminDataset'
@@ -151,7 +152,15 @@ export default function App() {
           <Route
             path="student"
             element={
-              <ProtectedRoute roles={['student']}>
+              <ProtectedRoute roles={['student', 'teacher', 'admin']}>
+                <StudentDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="student/analyze"
+            element={
+              <ProtectedRoute roles={['student', 'teacher', 'admin']}>
                 <StudentAnalyzer />
               </ProtectedRoute>
             }
