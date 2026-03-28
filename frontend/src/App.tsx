@@ -53,15 +53,43 @@ function AuthSync() {
 
   useEffect(() => {
     let initialized = false
+    let signedInFallback: ReturnType<typeof setTimeout> | null = null
 
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    function markInitialized() {
+      if (!initialized) {
+        initialized = true
+        setInitialized()
+      }
+    }
+
+    /** Strip #access_token=… (and any other hash params) from the address bar. */
+    function cleanHash() {
+      if (window.location.hash) {
+        window.history.replaceState(
+          null,
+          '',
+          window.location.pathname + window.location.search,
+        )
+      }
+    }
+
+    /**
+     * Fetch or create the backend user profile.
+     * Handles ALL failure modes so the caller never hangs:
+     *   - 404 → first login, register with defaults
+     *   - 401 → token invalid, logout
+     *   - Network error / 5xx → log and logout (cold-start or infra issue)
+     */
     async function syncUser(displayName: string) {
       try {
         const { data } = await api.get<AuthUser>('/auth/me')
         setUser(data)
       } catch (err: any) {
-        const status = err?.response?.status
+        const status: number | undefined = err?.response?.status
+
         if (status === 404) {
-          // First login — register with defaults
           try {
             const { data } = await api.post<AuthUser>('/auth/register', {
               name: displayName || 'Student',
@@ -70,58 +98,123 @@ function AuthSync() {
             })
             setUser(data)
           } catch {
-            // registration failed
+            // Registration also failed (network / 5xx) — app still initializes;
+            // user will be prompted to retry on next page load.
           }
         } else if (status === 401) {
+          logout()
+        } else {
+          // No response at all (Network Error) or 5xx (Railway cold-start, crash).
+          // Do NOT hang. Log, logout, let ProtectedRoute redirect to /auth.
+          console.error(
+            '[AuthSync] syncUser failed — status:', status ?? 'network error',
+            err?.message,
+          )
           logout()
         }
       }
     }
 
+    // ── Safety timeout: force-initialize after 15 s ────────────────────────
+    // Catches any path (SIGNED_IN never fires, syncUser hangs, etc.) that
+    // would otherwise leave the spinner on screen indefinitely.
+    const safetyTimer = setTimeout(() => {
+      if (!initialized) {
+        console.warn('[AuthSync] 15 s safety timeout — forcing initialization')
+        logout()
+        markInitialized()
+        navigate('/auth?error=timeout', { replace: true })
+      }
+    }, 15_000)
+
+    // ── Supabase auth state listener ───────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const displayName = session?.user.user_metadata?.full_name
-          ?? session?.user.email
-          ?? ''
+        const displayName =
+          session?.user.user_metadata?.full_name ??
+          session?.user.email ??
+          ''
 
+        // ── INITIAL_SESSION ──────────────────────────────────────────────
         if (event === 'INITIAL_SESSION') {
           if (session) {
-            // Normal page load with an existing session — wait for profile before showing app
+            // Normal page load with a live session.
             await syncUser(displayName)
-          } else if (window.location.hash.includes('access_token')) {
-            // OAuth redirect: Supabase hasn't exchanged the hash token yet.
-            // INITIAL_SESSION fires with session=null here, followed immediately by
-            // SIGNED_IN once the token is processed. Defer initialization to that event
-            // so ProtectedRoute never sees user=null while the token is valid.
+            cleanHash()
+            clearTimeout(safetyTimer)
+            markInitialized()
             return
           }
-          initialized = true
-          setInitialized()
+
+          if (window.location.hash.includes('access_token')) {
+            // OAuth redirect: Supabase JS is still exchanging the hash token.
+            // SIGNED_IN should fire within milliseconds on desktop. On some
+            // mobile browsers it can be delayed or silently dropped entirely.
+            // We wait up to 3 s; if SIGNED_IN never fires, force-process the
+            // session ourselves via getSession().
+            signedInFallback = setTimeout(async () => {
+              console.warn('[AuthSync] SIGNED_IN did not fire within 3 s — calling getSession()')
+              try {
+                const { data: { session: recovered } } = await supabase.auth.getSession()
+                if (recovered) {
+                  const name =
+                    recovered.user.user_metadata?.full_name ??
+                    recovered.user.email ??
+                    ''
+                  await syncUser(name)
+                } else {
+                  logout()
+                }
+              } catch {
+                logout()
+              }
+              cleanHash()
+              clearTimeout(safetyTimer)
+              markInitialized()
+            }, 3_000)
+
+            return // defer initialization — SIGNED_IN or the fallback above will finalize
+          }
+
+          // No session, no hash → logged-out page load.
+          clearTimeout(safetyTimer)
+          markInitialized()
           return
         }
 
+        // ── SIGNED_IN ────────────────────────────────────────────────────
         if (event === 'SIGNED_IN' && session) {
-          // Covers both OAuth redirects (initialized=false) and re-logins (initialized=true)
+          // Cancel the 3 s fallback if it's still pending.
+          if (signedInFallback !== null) {
+            clearTimeout(signedInFallback)
+            signedInFallback = null
+          }
+
           await syncUser(displayName)
+          cleanHash()
+          clearTimeout(safetyTimer)
+
           if (!initialized) {
-            initialized = true
-            setInitialized()
+            markInitialized()
           } else {
             navigate('/app/profile', { replace: true })
           }
         }
 
+        // ── SIGNED_OUT ───────────────────────────────────────────────────
         if (event === 'SIGNED_OUT') {
           logout()
-          if (!initialized) {
-            initialized = true
-            setInitialized()
-          }
+          clearTimeout(safetyTimer)
+          markInitialized()
         }
       },
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(safetyTimer)
+      if (signedInFallback !== null) clearTimeout(signedInFallback)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null
