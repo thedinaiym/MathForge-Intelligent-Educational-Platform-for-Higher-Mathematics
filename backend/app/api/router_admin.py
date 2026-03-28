@@ -1,7 +1,7 @@
 import os
 import json
 import traceback # Добавили для отслеживания ошибок
-import PyPDF2    # Добавили для чтения PDF
+import pypdf as PyPDF2    # pypdf is the modern successor to PyPDF2
 from fastapi import APIRouter, HTTPException, File, UploadFile
 from pydantic import BaseModel
 from groq import Groq
