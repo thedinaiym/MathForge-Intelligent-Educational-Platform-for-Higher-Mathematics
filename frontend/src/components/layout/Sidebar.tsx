@@ -70,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
         <div>
           <span className="text-xl font-bold text-amber-600">MathForge</span>
-          <p className="text-xs text-slate-400 mt-0.5">Neuro-Symbolic Math</p>
+          <p className="text-xs text-slate-400 mt-0.5">{t('nav.tagline')}</p>
         </div>
         {/* X button — mobile only */}
         <button

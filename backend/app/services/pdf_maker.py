@@ -136,7 +136,7 @@ async def compile_latex_to_pdf(
 
         solutions.append({
             "variant_num": v_idx,
-            "items": [
+            "answers": [
                 {
                     "condition_latex": t.get("condition_latex", ""),
                     "answer_latex": t.get("answer_latex", r"\text{—}"),

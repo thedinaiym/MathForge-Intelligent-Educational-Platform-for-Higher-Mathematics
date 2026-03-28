@@ -37,7 +37,7 @@ export default function DashboardLayout() {
                         bg-white border-b border-slate-200 flex-shrink-0 z-30">
           <div>
             <span className="text-lg font-bold text-amber-600 leading-none">MathForge</span>
-            <p className="text-[10px] text-slate-400 leading-none mt-0.5">Neuro-Symbolic Math</p>
+            <p className="text-[10px] text-slate-400 leading-none mt-0.5">Smart Math Platform</p>
           </div>
           <button
             onClick={() => setIsMobileMenuOpen(true)}

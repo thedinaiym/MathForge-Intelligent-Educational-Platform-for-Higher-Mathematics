@@ -12,11 +12,12 @@
     "logout": "Logout",
     "tutors": "Tutors",
     "videos": "Videos",
-    "news": "News"
+    "news": "News",
+    "tagline": "Smart Math Platform"
   },
   "auth": {
     "title": "Welcome to MathForge",
-    "subtitle": "Neuro-Symbolic math learning for university students",
+    "subtitle": "AI-powered math learning for university students",
     "loginWithGithub": "Continue with GitHub",
     "loginWithGoogle": "Continue with Google",
     "alreadyHaveAccount": "One account works for both sign-in and sign-up.",
@@ -31,11 +32,11 @@
     "signUpTitle": "Get started free",
     "signUpSubtitle": "Create your account in one click — no password needed",
     "aboutTitle": "About MathForge",
-    "aboutText1": "MathForge is a neuro-symbolic educational platform for university-level Linear Algebra and Calculus. It separates deterministic math (SymPy) from natural language hints (Groq Llama-3), delivering 100% correct solutions with zero AI hallucinations.",
+    "aboutText1": "MathForge is an AI-powered educational platform for university-level Linear Algebra and Calculus. It combines precise symbolic math (SymPy) with natural language explanations (Groq Llama-3), delivering 100% correct solutions with zero AI hallucinations.",
     "aboutText2": "Built for students and teachers across Central Asia. Full support for English, Russian, and Kyrgyz.",
     "creatorName": "Dinaiym",
     "creatorRole": "Founder & Developer",
-    "creatorBio": "MathForge was designed and built by Dinaiym — a software developer passionate about making high-quality mathematics education accessible to students in Central Asia. The platform was created to bring neuro-symbolic AI to the classroom, in the languages students actually speak.",
+    "creatorBio": "MathForge was designed and built by Dinaiym — a software developer passionate about making high-quality mathematics education accessible to students in Central Asia. The platform was created to bring AI-powered math tools to the classroom, in the languages students actually speak.",
     "creatorLocation": "Kyrgyz Republic · 2026",
     "backToHome": "Back to home",
     "continueWith": "or continue with",
@@ -44,7 +45,7 @@
     "institutionPlaceholder": "University, school or organisation"
   },
   "home": {
-    "hero": "Neuro-Symbolic Math Learning",
+    "hero": "AI-Powered Math Learning",
     "heroSubtitle": "University-level Linear Algebra and Calculus with AI-powered feedback and zero hallucinations",
     "getStarted": "Get Started",
     "learnMore": "Learn More",
@@ -56,7 +57,7 @@
     "aboutHeading": "The platform built for real math education",
     "creatorLabel": "Meet the creator",
     "features": {
-      "neuroSymbolic": "Neuro-Symbolic Engine",
+      "neuroSymbolic": "Precise Math Engine",
       "neuroSymbolicDesc": "SymPy computes 100% correct math — Groq explains mistakes in plain language",
       "multilingual": "3-Language Support",
       "multilingualDesc": "Full support for English, Russian, and Kyrgyz",
@@ -278,7 +279,7 @@
     "teacherNote": "Mastery tracking is shown for student accounts. Your activity heatmap is above."
   },
   "footer": {
-    "tagline": "Neuro-Symbolic math education for university students across Central Asia.",
+    "tagline": "Smart math education for university students across Central Asia.",
     "platform": "Platform",
     "getStarted": "Get Started",
     "aboutLink": "About Us",
