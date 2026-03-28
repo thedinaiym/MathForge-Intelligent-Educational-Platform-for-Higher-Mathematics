@@ -25,6 +25,7 @@ from app.models.schemas import (
     GenerateTaskResponse,
     GeneratedTask,
     OrtVariantRequest,
+    TaskTemplateInfo,
     TokenPayload,
 )
 from app.services.ort_generator import generate_ort_part1, generate_ort_part2
@@ -66,19 +67,23 @@ async def _generate_tasks(
     payload: GenerateTaskRequest,
     locale: str,
     db: AsyncSession,
+    template_id_override: "uuid.UUID | None" = None,
 ) -> list[dict]:
     """
     Fetch active templates matching (category, difficulty), run TaskGenerator
     for the requested count, and return a list of task dicts.
     Raises 404 if no matching templates exist.
     """
-    result = await db.execute(
-        select(TaskTemplate).where(
-            TaskTemplate.category_id == payload.category_id,
-            TaskTemplate.difficulty == payload.difficulty,
-            TaskTemplate.is_active.is_(True),
-        )
-    )
+    tid = template_id_override or payload.template_id
+    filters = [
+        TaskTemplate.category_id == payload.category_id,
+        TaskTemplate.difficulty == payload.difficulty,
+        TaskTemplate.is_active.is_(True),
+    ]
+    if tid:
+        filters.append(TaskTemplate.id == tid)
+
+    result = await db.execute(select(TaskTemplate).where(*filters))
     templates = result.scalars().all()
 
     if not templates:
@@ -127,6 +132,35 @@ async def list_categories(
     return [
         CategoryResponse(id=cat.id, name=cat.get_name(locale))
         for cat in categories
+    ]
+
+
+# ── Route: list templates for a category (teacher topic cascade) ──────────────
+
+@router.get("/templates", response_model=list[TaskTemplateInfo])
+async def list_templates(
+    category_id: uuid.UUID,
+    locale: str = Depends(get_locale),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return active templates for a given category, with titles resolved by locale.
+    Used by the teacher UI for the cascading topic dropdown.
+    """
+    result = await db.execute(
+        select(TaskTemplate).where(
+            TaskTemplate.category_id == category_id,
+            TaskTemplate.is_active.is_(True),
+        )
+    )
+    templates = result.scalars().all()
+    return [
+        TaskTemplateInfo(
+            id=t.id,
+            title=t.get_title(locale),
+            difficulty=t.difficulty,
+        )
+        for t in templates
     ]
 
 
@@ -180,10 +214,7 @@ async def generate_tasks_pdf(
     # Step 1 — Deduct tokens before doing any work
     await _deduct_tokens(user_id, TOKEN_COST_PDF, db)
 
-    # Step 2 — SymPy task generation
-    generated = await _generate_tasks(payload, locale, db)
-
-    # Step 3 — Fetch category name for the worksheet title
+    # Step 2 — Fetch category name for the worksheet title
     cat_result = await db.execute(
         select(Category).where(Category.id == payload.category_id)
     )
@@ -192,9 +223,18 @@ async def generate_tasks_pdf(
     difficulty_label = payload.difficulty.capitalize()
     title = f"{category_name} — {difficulty_label}"
 
+    # Step 3 — SymPy task generation for each variant independently
+    variants_tasks: list[list[dict]] = []
+    for _ in range(payload.variant_count):
+        variant_tasks = await _generate_tasks(payload, locale, db)
+        variants_tasks.append(variant_tasks)
+
     # Step 4 — Compile PDF (blocking work runs in thread pool)
     try:
-        pdf_bytes = await compile_latex_to_pdf(title=title, tasks=generated)
+        pdf_bytes = await compile_latex_to_pdf(
+            title=title,
+            variants_tasks=variants_tasks,
+        )
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -202,7 +242,7 @@ async def generate_tasks_pdf(
         ) from exc
 
     # Step 5 — Return raw PDF
-    filename = f"mathforge_{payload.difficulty}_{payload.count}q.pdf"
+    filename = f"mathforge_{payload.difficulty}_{payload.variant_count}v_{payload.count}q.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

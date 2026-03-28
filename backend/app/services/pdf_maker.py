@@ -101,16 +101,19 @@ def _compile_sync(latex_source: str) -> bytes:
 
 # ── Public async API ──────────────────────────────────────────────────────────
 
-async def compile_latex_to_pdf(title: str, tasks: list[dict]) -> bytes:
+async def compile_latex_to_pdf(
+    title: str,
+    variants_tasks: list[list[dict]],
+) -> bytes:
     """
-    Render and compile a worksheet to PDF.
+    Render and compile a multi-variant worksheet with solutions appendix to PDF.
 
     Args:
-        title:  Worksheet title (already localised, e.g. "Calculus — Medium").
-        tasks:  List of dicts with keys:
-                  question_text   (str) — localised prompt
-                  condition_latex (str) — SymPy-generated LaTeX expression
-                  answer_latex    (str) — SymPy-generated LaTeX answer
+        title:          Worksheet title (localised, e.g. "Calculus — Medium").
+        variants_tasks: One list per variant; each inner dict has keys:
+                          question_text   — localised prompt
+                          condition_latex — SymPy-generated LaTeX equation
+                          answer_latex    — SymPy-generated LaTeX answer
 
     Returns:
         Raw PDF bytes ready to be sent as an HTTP response.
@@ -118,26 +121,38 @@ async def compile_latex_to_pdf(title: str, tasks: list[dict]) -> bytes:
     Raises:
         RuntimeError: If pdflatex is missing, times out, or fails to compile.
     """
-    # Build Jinja2 context that matches the base_exam.tex template structure:
-    #   variants  → list of { variant_num, tasks: [{ title, condition_latex }] }
-    #   answers   → dict  { variant_num: [answer_latex, ...] }
-    task_entries = [
-        {
-            "title": t.get("question_text", ""),
-            "condition_latex": t.get("condition_latex", ""),
-        }
-        for t in tasks
-    ]
+    variants = []
+    solutions = []   # one entry per variant: list of {condition, answer}
+
+    for v_idx, tasks in enumerate(variants_tasks, start=1):
+        task_entries = [
+            {
+                "title": t.get("question_text", ""),
+                "condition_latex": t.get("condition_latex", ""),
+            }
+            for t in tasks
+        ]
+        variants.append({"variant_num": v_idx, "tasks": task_entries})
+
+        solutions.append({
+            "variant_num": v_idx,
+            "items": [
+                {
+                    "condition_latex": t.get("condition_latex", ""),
+                    "answer_latex": t.get("answer_latex", r"\text{—}"),
+                }
+                for t in tasks
+            ],
+        })
 
     context = {
         "title": title,
-        "variants": [{"variant_num": 1, "tasks": task_entries}],
-        "answers": {1: [t.get("answer_latex", "") for t in tasks]},
+        "variants": variants,
+        "solutions": solutions,
     }
 
     template = _jinja_env.get_template("base_exam.tex")
     latex_source = template.render(**context)
 
-    # Run the blocking subprocess in a thread pool — never blocks the event loop
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _compile_sync, latex_source)

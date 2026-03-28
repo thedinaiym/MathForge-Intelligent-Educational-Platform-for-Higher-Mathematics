@@ -1,39 +1,77 @@
 \documentclass[12pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[russian]{babel}
-\usepackage{amsmath}
+\usepackage[T2A]{fontenc}
+\usepackage[russian,english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{needspace}
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
 
 \begin{document}
 
+%% ══════════════════════════════════════════════════════════════
+%%  VARIANTS  (one page block per variant)
+%% ══════════════════════════════════════════════════════════════
+
 {% for var in variants %}
 \begin{center}
-    \Large\textbf{ {{ title }} } \\
-    \large Вариант № {{ var.variant_num }}
+    {\Large\bfseries {{ title }}} \\[4pt]
+    {\large Вариант~№\,{{ var.variant_num }}}
 \end{center}
-\vspace{1cm}
+\vspace{0.8cm}
 
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}]
 {% for task in var.tasks %}
-\textbf{Задание {{ loop.index }}:} {{ task.title }} \\
-\[ {{ task.condition_latex }} \]
-\vspace{1.5cm}
+    \needspace{4\baselineskip}
+    \item {{ task.title }}
+    \[
+        {{ task.condition_latex }}
+    \]
+    \vspace{1.2cm}
 {% endfor %}
+\end{enumerate}
+
+{% if not loop.last %}
+\newpage
+{% endif %}
+{% endfor %}
+
+%% ══════════════════════════════════════════════════════════════
+%%  SOLUTIONS APPENDIX  (teacher copy — starts on a new page)
+%% ══════════════════════════════════════════════════════════════
 
 \newpage
-{% endfor %}
 
-% Раздел с ответами (печатается на последней странице)
 \begin{center}
-    \Large\textbf{Ключи для проверки (Учитель)}
+    {\Large\bfseries Приложение: Ответы и решения} \\[2pt]
+    {\small\itshape (Appendix: Answers \& Step-by-Step Solutions)} \\[6pt]
+    {\normalsize\bfseries {{ title }}}
 \end{center}
 
-{% for var_num, ans_list in answers.items() %}
-\textbf{Вариант {{ var_num }}:}
-\begin{enumerate}
-    {% for ans in ans_list %}
-        \item {{ ans }}
-    {% endfor %}
+\bigskip
+
+{% for sol in solutions %}
+\needspace{6\baselineskip}
+{\large\bfseries Вариант~{{ sol.variant_num }}}
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=10pt]
+{% for item in sol.items %}
+    \item
+    \textbf{Уравнение:}
+    \[
+        {{ item.condition_latex }}
+    \]
+    \textbf{Ответ:}
+    \[
+        {{ item.answer_latex }}
+    \]
+{% endfor %}
 \end{enumerate}
-\vspace{0.5cm}
+
+{% if not loop.last %}
+\bigskip\hrule\bigskip
+{% endif %}
 {% endfor %}
 
 \end{document}

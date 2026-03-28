@@ -1,285 +1,423 @@
+/**
+ * TeacherGenerator — Phase 14 implementation.
+ *
+ * Cascading form:
+ *   1. Subject  (category_id   — from /tasks/categories)
+ *   2. Topic    (template_id   — from /tasks/templates?category_id=…)
+ *   3. Difficulty
+ *   4. Questions per variant   (count)
+ *   5. Number of variants      (variant_count)
+ *
+ * Generates POST /tasks/generate/pdf → multi-variant PDF with solutions appendix.
+ */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useForm } from 'react-hook-form'
-import { yupResolver } from '@hookform/resolvers/yup'
-import * as yup from 'yup'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, RefreshCw } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
 import { useUIStore } from '../../store/uiStore'
 import Button from '../../components/ui/Button'
-import Input from '../../components/ui/Input'
 
-// ── Loading phase animation ───────────────────────────────────────────────────
-
-const PHASE_INTERVAL_MS = 2800
-
-function usePhaseLabel(isActive: boolean, phases: string[]): string {
-  const [phase, setPhase] = useState(0)
-
-  useEffect(() => {
-    if (!isActive) {
-      setPhase(0)
-      return
-    }
-    const id = setInterval(
-      () => setPhase((p) => (p + 1) % phases.length),
-      PHASE_INTERVAL_MS,
-    )
-    return () => clearInterval(id)
-  }, [isActive, phases.length])
-
-  return phases[phase]
-}
-
-// ── Form types ────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 
-interface GenerateFormData {
-  category_id: string
+interface TemplateInfo {
+  id: string
+  title: string
   difficulty: Difficulty
-  count: number
 }
 
-const schema = yup.object({
-  category_id: yup.string().required(),
-  difficulty: yup.mixed<Difficulty>().oneOf(['easy', 'medium', 'hard']).required(),
-  count: yup.number().min(1).max(50).required(),
-})
+interface FormState {
+  category_id: string
+  template_id: string        // '' = all topics
+  difficulty: Difficulty
+  count: number
+  variant_count: number
+}
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Loading phase animation ───────────────────────────────────────────────────
+
+const PHASE_MS = 2800
+
+function usePhaseLabel(active: boolean, phases: string[]): string {
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    if (!active) { setPhase(0); return }
+    const id = setInterval(() => setPhase((p) => (p + 1) % phases.length), PHASE_MS)
+    return () => clearInterval(id)
+  }, [active, phases.length])
+  return phases[phase]
+}
+
+// ── Select helper ─────────────────────────────────────────────────────────────
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  disabled,
+  children,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm
+                   focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
+                   disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed
+                   transition-colors"
+      >
+        {children}
+      </select>
+    </div>
+  )
+}
+
+// ── Number input ──────────────────────────────────────────────────────────────
+
+function NumberField({
+  label,
+  hint,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  label: string
+  hint?: string
+  value: number
+  onChange: (v: number) => void
+  min: number
+  max: number
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => {
+          const n = Math.max(min, Math.min(max, Number(e.target.value) || min))
+          onChange(n)
+        }}
+        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm
+                   focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
+                   transition-colors"
+      />
+      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
+// ── Difficulty pill group ─────────────────────────────────────────────────────
+
+const DIFF_STYLES: Record<Difficulty, string> = {
+  easy:   'border-green-400 bg-green-50 text-green-700',
+  medium: 'border-amber-400 bg-amber-50 text-amber-700',
+  hard:   'border-red-400   bg-red-50   text-red-700',
+}
+
+function DifficultyPicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: Difficulty
+  onChange: (d: Difficulty) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <div className="flex gap-2">
+        {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => onChange(d)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors
+              ${value === d ? DIFF_STYLES[d] : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+          >
+            {t(`teacher.difficulty_${d}`)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export default function TeacherGenerator() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { tokenBalance } = useUIStore()
-  const { data: categories, isLoading: categoriesLoading } = useCategories()
 
-  // Controlled difficulty picker state — kept in sync with react-hook-form via setValue
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
-
-  // Blob URL of the last generated PDF — revoked on new generation or unmount
-  const blobUrlRef = useRef<string | null>(null)
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
-    }
-  }, [])
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<GenerateFormData>({
-    resolver: yupResolver(schema),
-    defaultValues: { difficulty: 'medium', count: 10 },
+  const [form, setForm] = useState<FormState>({
+    category_id: '',
+    template_id: '',
+    difficulty: 'medium',
+    count: 10,
+    variant_count: 1,
   })
 
-  const handleDifficultyChange = (d: Difficulty) => {
-    setSelectedDifficulty(d)
-    setValue('difficulty', d)
+  const set = (key: keyof FormState, value: string | number) =>
+    setForm((prev) => ({ ...prev, [key]: value }))
+
+  // Reset topic when category changes
+  const handleCategoryChange = (id: string) => {
+    setForm((prev) => ({ ...prev, category_id: id, template_id: '' }))
   }
 
-  // ── Mutation: POST /tasks/generate/pdf → Blob → object URL ───────────────
-  const mutation = useMutation<string, Error, GenerateFormData>({
-    mutationFn: async (data) => {
-      const response = await api.post('/tasks/generate/pdf', data, {
+  // ── Data fetching ──────────────────────────────────────────────────────────
+  const { data: categories = [], isLoading: loadingCats } = useCategories()
+
+  const { data: templates = [], isLoading: loadingTemplates } = useQuery<TemplateInfo[]>({
+    queryKey: ['templates', form.category_id],
+    queryFn: async () => {
+      const { data } = await api.get<TemplateInfo[]>('/tasks/templates', {
+        params: { category_id: form.category_id },
+      })
+      return data
+    },
+    enabled: !!form.category_id,
+    staleTime: 5 * 60_000,
+  })
+
+  // Filter templates to match selected difficulty (show all if no difficulty match)
+  const topicOptions = templates.filter((t) => t.difficulty === form.difficulty || templates.every((t2) => t2.difficulty !== form.difficulty))
+
+  // ── PDF mutation ───────────────────────────────────────────────────────────
+  const blobUrlRef = useRef<string | null>(null)
+  useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current) }, [])
+
+  const mutation = useMutation<string, Error>({
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = {
+        category_id: form.category_id,
+        difficulty: form.difficulty,
+        count: form.count,
+        variant_count: form.variant_count,
+      }
+      if (form.template_id) payload.template_id = form.template_id
+
+      const response = await api.post('/tasks/generate/pdf', payload, {
         responseType: 'blob',
-        timeout: 90_000, // pdflatex can be slow on first MiKTeX run
+        timeout: 120_000,
       })
 
-      // Revoke previous URL before creating a new one
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
-
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       blobUrlRef.current = url
       return url
     },
     onSuccess: () => {
-      // Backend deducted 5 tokens — fetch the real balance from the server
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
     },
   })
 
-  // ── Loading phase labels ──────────────────────────────────────────────────
   const phases = [
     t('teacher.phases.solving'),
     t('teacher.phases.typesetting'),
     t('teacher.phases.preparing'),
   ]
-  const activePhaseLabel = usePhaseLabel(mutation.isPending, phases)
+  const phaseLabel = usePhaseLabel(mutation.isPending, phases)
 
-  const canGenerate = tokenBalance >= 5
+  const canGenerate = tokenBalance >= 5 && !!form.category_id && !mutation.isPending
 
   const handleReset = () => {
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-      blobUrlRef.current = null
-    }
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null }
     mutation.reset()
   }
 
-  const difficultyColors: Record<Difficulty, string> = {
-    easy:   'border-green-400 bg-green-50 text-green-700',
-    medium: 'border-amber-400 bg-amber-50 text-amber-700',
-    hard:   'border-red-400   bg-red-50   text-red-700',
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-xl">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">{t('teacher.title')}</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-1">{t('teacher.title')}</h1>
+      <p className="text-sm text-slate-500 mb-6">{t('teacher.subtitle')}</p>
 
-      {/* Token warning */}
-      {!canGenerate && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+      {tokenBalance < 5 && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
           {t('teacher.noTokens')}
         </div>
       )}
 
-      {/* Form */}
-      <form
-        onSubmit={handleSubmit((data) => mutation.mutate(data))}
-        className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm space-y-4"
-      >
-        {/* Category */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-slate-700">{t('teacher.category')}</label>
-          <select
-            {...register('category_id')}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm
-              focus:outline-none focus:ring-2 focus:ring-amber-400"
+      {/* ── Form card ──────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+
+        {/* Step 1 — Subject */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">1</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('teacher.stepSubject')}</span>
+          </div>
+          <SelectField
+            label={t('teacher.category')}
+            value={form.category_id}
+            onChange={handleCategoryChange}
+          >
+            <option value="">{loadingCats ? t('common.loading') : t('teacher.selectCategory')}</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </SelectField>
+        </div>
+
+        {/* Step 2 — Difficulty */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">2</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('teacher.stepDifficulty')}</span>
+          </div>
+          <DifficultyPicker
+            label={t('teacher.difficulty')}
+            value={form.difficulty}
+            onChange={(d) => { set('difficulty', d); set('template_id', '') }}
+          />
+        </div>
+
+        {/* Step 3 — Topic (cascades from category) */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${
+              form.category_id ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'
+            }`}>3</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('teacher.stepTopic')}</span>
+          </div>
+          <SelectField
+            label={t('teacher.topic')}
+            value={form.template_id}
+            onChange={(v) => set('template_id', v)}
+            disabled={!form.category_id || loadingTemplates}
           >
             <option value="">
-              {categoriesLoading ? t('common.loading') : t('common.noData')}
+              {!form.category_id
+                ? t('teacher.selectSubjectFirst')
+                : loadingTemplates
+                ? t('common.loading')
+                : t('teacher.allTopics')}
             </option>
-            {categories?.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
+            {topicOptions.map((tmpl) => (
+              <option key={tmpl.id} value={tmpl.id}>{tmpl.title}</option>
             ))}
-          </select>
-          {errors.category_id && (
-            <p className="text-xs text-red-500">{errors.category_id.message}</p>
-          )}
+          </SelectField>
         </div>
 
-        {/* Difficulty — visual button group, value synced to react-hook-form */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-slate-700">{t('teacher.difficulty')}</label>
-          <div className="flex gap-2">
-            {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => handleDifficultyChange(d)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors
-                  ${selectedDifficulty === d
-                    ? difficultyColors[d]
-                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                  }`}
-              >
-                {t(`teacher.difficulty_${d}`)}
-              </button>
-            ))}
+        {/* Step 4 — Questions & Variants side by side */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">4</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('teacher.stepQuantity')}</span>
           </div>
-          {/* Hidden input registers the value with react-hook-form */}
-          <input type="hidden" {...register('difficulty')} value={selectedDifficulty} />
+          <div className="grid grid-cols-2 gap-4">
+            <NumberField
+              label={t('teacher.questionCount')}
+              hint={t('teacher.questionCountHint')}
+              value={form.count}
+              onChange={(v) => set('count', v)}
+              min={1}
+              max={50}
+            />
+            <NumberField
+              label={t('teacher.variantCount')}
+              hint={t('teacher.variantCountHint')}
+              value={form.variant_count}
+              onChange={(v) => set('variant_count', v)}
+              min={1}
+              max={5}
+            />
+          </div>
         </div>
 
-        {/* Count */}
-        <Input
-          {...register('count', { valueAsNumber: true })}
-          type="number"
-          label={t('teacher.questionCount')}
-          hint={t('teacher.questionCountHint')}
-          min={1}
-          max={50}
-          error={errors.count?.message}
-        />
+        {/* Token cost summary */}
+        <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl text-xs text-slate-500">
+          <span>{t('teacher.costLabel')}</span>
+          <span className="font-semibold text-slate-700">5 {t('billing.tokensShort')} · {t('teacher.variantLabel', { count: form.variant_count })}</span>
+        </div>
 
         <Button
-          type="submit"
+          type="button"
+          onClick={() => mutation.mutate()}
           loading={mutation.isPending}
-          disabled={!canGenerate || mutation.isPending}
+          disabled={!canGenerate}
           className="w-full justify-center"
         >
-          {mutation.isPending ? activePhaseLabel : t('teacher.generate')}
+          {mutation.isPending ? phaseLabel : t('teacher.generate')}
         </Button>
-      </form>
+      </div>
 
-      {/* ── Loading state (animated bar + phase label) ──────────────────── */}
+      {/* ── Loading progress bar ──────────────────────────────────────────── */}
       {mutation.isPending && (
         <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
           <div className="flex items-center gap-3">
             <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-            <p className="text-sm font-medium text-amber-800">{activePhaseLabel}</p>
+            <p className="text-sm font-medium text-amber-800">{phaseLabel}</p>
           </div>
           <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
-            <div className="h-full bg-amber-400 rounded-full animate-pulse" style={{ width: '70%' }} />
+            <div className="h-full bg-amber-400 rounded-full animate-pulse" style={{ width: '65%' }} />
           </div>
           <p className="text-xs text-amber-600">
-            LaTeX compilation takes 10–30 s on the first run.
+            {form.variant_count > 1
+              ? t('teacher.multiVariantNote', { count: form.variant_count })
+              : t('teacher.latexNote')}
           </p>
         </div>
       )}
 
-      {/* ── Success: download / open PDF ────────────────────────────────── */}
+      {/* ── Success ───────────────────────────────────────────────────────── */}
       {mutation.isSuccess && mutation.data && (
-        <div className="mt-4 p-5 bg-green-50 border border-green-200 rounded-xl">
-          <p className="text-sm font-semibold text-green-800 mb-1">{t('teacher.pdfReady')}</p>
-          <p className="text-xs text-green-600 mb-4">5 tokens deducted from your balance.</p>
+        <div className="mt-4 p-5 bg-green-50 border border-green-200 rounded-2xl">
+          <p className="text-sm font-semibold text-green-800 mb-0.5">{t('teacher.pdfReady')}</p>
+          <p className="text-xs text-green-600 mb-4">
+            {t('teacher.pdfReadyDesc', { variants: form.variant_count, questions: form.count })}
+          </p>
 
-          <div className="flex gap-2">
-            <a
-              href={mutation.data}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1"
-            >
+          <div className="flex gap-2 mb-3">
+            <a href={mutation.data} target="_blank" rel="noopener noreferrer" className="flex-1">
               <Button variant="secondary" className="w-full justify-center">
-                <ExternalLink size={14} />
-                {t('teacher.openPdf')}
+                <ExternalLink size={14} /> {t('teacher.openPdf')}
               </Button>
             </a>
-            <a
-              href={mutation.data}
-              download="mathforge_worksheet.pdf"
-              className="flex-1"
-            >
+            <a href={mutation.data} download={`mathforge_${form.variant_count}v_${form.count}q.pdf`} className="flex-1">
               <Button className="w-full justify-center">
-                <Download size={14} />
-                {t('teacher.download')}
+                <Download size={14} /> {t('teacher.download')}
               </Button>
             </a>
           </div>
 
           <button
             onClick={handleReset}
-            className="mt-3 flex items-center gap-1.5 text-xs text-green-700 hover:text-green-900 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-green-700 hover:text-green-900 transition-colors"
           >
-            <RefreshCw size={12} />
-            Generate another worksheet
+            <RefreshCw size={12} /> {t('teacher.generateAnother')}
           </button>
         </div>
       )}
 
-      {/* ── Error state ────────────────────────────────────────────────── */}
+      {/* ── Error ─────────────────────────────────────────────────────────── */}
       {mutation.isError && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm font-semibold text-red-700 mb-1">{t('common.error')}</p>
           <p className="text-xs text-red-500 font-mono break-all">
             {(mutation.error as Error)?.message ?? 'Unknown error'}
           </p>
-          <button
-            onClick={handleReset}
-            className="mt-2 text-xs text-red-600 hover:text-red-800 underline"
-          >
-            Try again
+          <button onClick={handleReset} className="mt-2 text-xs text-red-600 hover:text-red-800 underline">
+            {t('common.back')}
           </button>
         </div>
       )}

@@ -123,12 +123,21 @@ class GenerateTaskRequest(BaseModel):
     category_id: uuid.UUID
     difficulty: DifficultyType
     count: int = Field(default=10, ge=1, le=50)
+    variant_count: int = Field(default=1, ge=1, le=5)
+    template_id: uuid.UUID | None = Field(default=None)
 
 
 class GeneratedTask(BaseModel):
     question_text: str
     condition_latex: str
     answer_latex: str
+
+
+class TaskTemplateInfo(BaseModel):
+    """Lightweight template info for cascading topic dropdown."""
+    id: uuid.UUID
+    title: str
+    difficulty: DifficultyType
 
 
 class GenerateTaskResponse(BaseModel):
