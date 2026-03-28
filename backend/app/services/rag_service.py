@@ -2,25 +2,22 @@
 RAG Service — semantic similarity search over TaskTemplate records.
 
 Stack:
-  - Embeddings : HuggingFaceEmbeddings (sentence-transformers/all-MiniLM-L6-v2)
+  - Embeddings : fastembed BAAI/bge-small-en-v1.5 (ONNX, no torch, ~30 MB)
   - Vector store: Qdrant (remote when QDRANT_URL is set, in-memory otherwise)
   - LangChain   : QdrantVectorStore for unified index/search API
 
-Collection name: "task_templates"
-
-Usage:
-    service = RAGService()
-    await service.index_templates(templates)           # rebuild index
-    results = await service.search_similar_tasks(query, k=5)
+The module-level singleton is created with a failsafe try/except so that a
+missing fastembed model, unreachable Qdrant, or any other transient error
+NEVER prevents the app from starting (and therefore never blocks the DB seeder).
+RAG endpoints return HTTP 503 when the service is unavailable.
 """
 from __future__ import annotations
 
 import logging
-import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings as LCEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
@@ -32,31 +29,51 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_COLLECTION = "task_templates"
-_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-_VECTOR_SIZE = 384  # all-MiniLM-L6-v2 output dimension
+_COLLECTION  = "task_templates"
+_EMBED_MODEL = "BAAI/bge-small-en-v1.5"
+_VECTOR_SIZE = 384   # bge-small-en-v1.5 output dimension
 
+
+# ── Lightweight embedding wrapper (fastembed, no torch) ───────────────────────
+
+class _FastEmbeddings(LCEmbeddings):
+    """
+    Minimal LangChain Embeddings wrapper around fastembed.
+
+    The underlying ONNX model is created lazily on first embed call so that
+    __init__ never blocks app startup (model download is ~30 MB on first use).
+    """
+
+    def __init__(self, model_name: str) -> None:
+        self._model_name = model_name
+        self._model: Optional[object] = None   # lazy; created on first use
+
+    def _get_model(self):
+        if self._model is None:
+            from fastembed import TextEmbedding  # noqa: PLC0415
+            self._model = TextEmbedding(model_name=self._model_name)
+        return self._model
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return [v.tolist() for v in self._get_model().embed(texts)]
+
+    def embed_query(self, text: str) -> List[float]:
+        return next(self._get_model().embed([text])).tolist()
+
+
+# ── RAGService ────────────────────────────────────────────────────────────────
 
 class RAGService:
     """
-    Singleton-friendly service.  Build once at startup; share across requests.
+    Singleton RAG service.  Build once at startup; share across requests.
 
-    Attributes
-    ----------
-    _embeddings : HuggingFaceEmbeddings
-        Local CPU-friendly transformer model (~80 MB download on first use).
-    _client : QdrantClient
-        Remote client when QDRANT_URL is configured; in-memory otherwise.
-    _store : QdrantVectorStore | None
-        Lazily initialised after the first call to `index_templates`.
+    __init__ is kept cheap — Qdrant collection bootstrap is also failsafe.
+    Heavy work (model download, vector upsert) is deferred to the first call
+    to index_templates() / search_similar_tasks().
     """
 
     def __init__(self) -> None:
-        self._embeddings = HuggingFaceEmbeddings(
-            model_name=_EMBED_MODEL,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
+        self._embeddings = _FastEmbeddings(model_name=_EMBED_MODEL)
 
         if settings.qdrant_url:
             self._client = QdrantClient(
@@ -72,12 +89,15 @@ class RAGService:
             )
 
         self._store: QdrantVectorStore | None = None
-        self._ensure_collection()
+        try:
+            self._ensure_collection()
+        except Exception as exc:
+            # Qdrant might be starting up — collection will be created on first index.
+            logger.warning("RAGService: collection bootstrap skipped: %s", exc)
 
     # ── Collection bootstrap ──────────────────────────────────────────────────
 
     def _ensure_collection(self) -> None:
-        """Create the Qdrant collection if it does not exist yet."""
         existing = {c.name for c in self._client.get_collections().collections}
         if _COLLECTION not in existing:
             self._client.create_collection(
@@ -91,25 +111,15 @@ class RAGService:
     async def index_templates(self, templates: list["TaskTemplate"]) -> int:
         """
         (Re-)index a list of TaskTemplate ORM records into Qdrant.
-
-        Each template is represented as a LangChain Document whose:
-          - page_content = "<title_ru>. <topic>. <text_ru>"
-          - metadata     = {"template_id": "<uuid>", "difficulty": "easy|medium|hard"}
-
-        Existing points with the same IDs are upserted (overwritten).
-
-        Returns
-        -------
-        int
-            Number of templates successfully indexed.
+        Returns the number of templates indexed.
         """
         if not templates:
             return 0
 
         docs: list[Document] = []
         for tmpl in templates:
-            title = tmpl.title_translations.get("ru") or tmpl.title_translations.get("en", "")
-            topic = tmpl.template_json.get("topic", "")
+            title   = tmpl.title_translations.get("ru") or tmpl.title_translations.get("en", "")
+            topic   = tmpl.template_json.get("topic", "")
             text_ru = (tmpl.template_json.get("texts") or {}).get("ru", "")
             content = f"{title}. {topic}. {text_ru}".strip()
 
@@ -118,24 +128,22 @@ class RAGService:
                     page_content=content,
                     metadata={
                         "template_id": str(tmpl.id),
-                        "difficulty": tmpl.difficulty,
+                        "difficulty":  tmpl.difficulty,
                         "category_id": str(tmpl.category_id),
                     },
                 )
             )
 
-        # QdrantVectorStore.from_documents recreates the store with upsert semantics
         self._store = await QdrantVectorStore.afrom_documents(
             documents=docs,
             embedding=self._embeddings,
             collection_name=_COLLECTION,
             url=settings.qdrant_url or None,
             api_key=settings.qdrant_api_key or None,
-            # For in-memory: pass client directly
             **({"client": self._client} if not settings.qdrant_url else {}),
         )
 
-        logger.info("RAGService: indexed %d templates into Qdrant", len(docs))
+        logger.info("RAGService: indexed %d templates", len(docs))
         return len(docs)
 
     # ── Search ────────────────────────────────────────────────────────────────
@@ -146,21 +154,8 @@ class RAGService:
         k: int = 5,
         difficulty: str | None = None,
     ) -> list[dict]:
-        """
-        Find the `k` most semantically similar templates for a free-text `query`.
-
-        Parameters
-        ----------
-        query      : natural-language description of the desired task type
-        k          : max results to return
-        difficulty : optional filter — 'easy' | 'medium' | 'hard'
-
-        Returns
-        -------
-        list of dicts with keys: template_id, difficulty, category_id, score, snippet
-        """
+        """Return the k most semantically similar templates for query."""
         if self._store is None:
-            # Store not yet initialised — return empty rather than crash
             logger.warning("RAGService.search called before index_templates was run")
             return []
 
@@ -178,15 +173,24 @@ class RAGService:
         return [
             {
                 "template_id": doc.metadata["template_id"],
-                "difficulty": doc.metadata.get("difficulty"),
+                "difficulty":  doc.metadata.get("difficulty"),
                 "category_id": doc.metadata.get("category_id"),
-                "score": round(float(score), 4),
-                "snippet": doc.page_content[:120],
+                "score":       round(float(score), 4),
+                "snippet":     doc.page_content[:120],
             }
             for doc, score in results
         ]
 
 
-# ── Module-level singleton (imported by the router) ───────────────────────────
+# ── Module-level singleton ────────────────────────────────────────────────────
+# Wrapped in try/except so a transient init error (Qdrant down, model fetch
+# failure) NEVER crashes the app on startup.  Routes return HTTP 503 if None.
 
-rag_service = RAGService()
+try:
+    rag_service: RAGService | None = RAGService()
+    logger.info("RAGService initialised successfully.")
+except Exception as _init_exc:
+    logger.warning(
+        "RAGService init failed — RAG features disabled until restart: %s", _init_exc
+    )
+    rag_service = None  # type: ignore[assignment]

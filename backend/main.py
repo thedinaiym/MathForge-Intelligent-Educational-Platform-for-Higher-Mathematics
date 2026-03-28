@@ -79,9 +79,8 @@ async def startup():
     try:
         await _migrate_stale_schema()
     except Exception as exc:
-        print(f"⚠️  Schema migration failed: {exc}")
-        # Not fatal — try to continue; create_all may still work
-        return
+        # Non-fatal: log and continue. create_all + seed must still run.
+        print(f"⚠️  Schema migration warning (non-fatal): {exc}")
 
     # ── Step 1: tables ────────────────────────────────────────────────────
     try:
@@ -100,17 +99,20 @@ async def startup():
     except Exception as exc:
         print(f"⚠️  Seeding failed (non-fatal): {exc}")
 
-    # Auto-index templates into Qdrant after seeding
+    # Auto-index templates into Qdrant after seeding (non-fatal)
     try:
         from sqlalchemy import select
         from app.db.models import TaskTemplate
         from app.services.rag_service import rag_service
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(TaskTemplate).where(TaskTemplate.is_active.is_(True)))
-            templates = result.scalars().all()
-            if templates:
-                indexed = await rag_service.index_templates(list(templates))
-                print(f"✅ RAG: indexed {indexed} templates into Qdrant.")
+        if rag_service is not None:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(TaskTemplate).where(TaskTemplate.is_active.is_(True)))
+                templates = result.scalars().all()
+                if templates:
+                    indexed = await rag_service.index_templates(list(templates))
+                    print(f"✅ RAG: indexed {indexed} templates into Qdrant.")
+        else:
+            print("⚠️  RAG skipped — service unavailable (fastembed/Qdrant not ready).")
     except Exception as exc:
         print(f"⚠️  RAG indexing failed (non-fatal): {exc}")
 
