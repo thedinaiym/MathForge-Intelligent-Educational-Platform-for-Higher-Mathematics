@@ -241,7 +241,7 @@ export default function Dashboard() {
               startDate={yearAgo}
               endDate={today}
               values={heatmap}
-              classForValue={heatmapClass}
+              classForValue={(v) => heatmapClass(v as unknown as { count: number } | null)}
               titleForValue={(value) =>
                 value && value.count > 0
                   ? `${value.date}: ${value.count} ${t('dashboard.analyses')}`
