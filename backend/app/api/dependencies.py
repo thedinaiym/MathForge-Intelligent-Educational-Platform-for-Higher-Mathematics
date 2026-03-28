@@ -5,12 +5,17 @@ FastAPI dependencies shared across routes.
 - require_role: role-based access guard factory.
 """
 import logging
+import uuid
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from supabase import create_client
 
 from app.core.config import settings
+from app.db.database import get_db
+from app.db.models import User as UserModel
 from app.models.schemas import TokenPayload
 
 logger = logging.getLogger(__name__)
@@ -34,9 +39,11 @@ def get_locale(accept_language: str = Header(default="ru")) -> str:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_security),
+    db: AsyncSession = Depends(get_db),
 ) -> TokenPayload:
     """
     Validate the Bearer token issued by Supabase and return a TokenPayload.
+    Role is resolved from our PostgreSQL users table (not Supabase user_metadata).
     Raises 401 if the token is missing or invalid.
     """
     if credentials is None:
@@ -46,15 +53,13 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Step 1: validate token with Supabase
     try:
         user_resp = _supabase.auth.get_user(credentials.credentials)
         supabase_user = user_resp.user
 
         if supabase_user is None:
             raise ValueError("No user returned from Supabase")
-
-        role = (supabase_user.user_metadata or {}).get("role", "student")
-        return TokenPayload(sub=str(supabase_user.id), role=role)
 
     except Exception as exc:
         logger.error("get_current_user failed: %s: %s", type(exc).__name__, exc)
@@ -63,6 +68,14 @@ async def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+    # Step 2: resolve role from our DB (the source of truth for roles)
+    user_id = uuid.UUID(str(supabase_user.id))
+    result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+    db_user = result.scalar_one_or_none()
+    role = db_user.role if db_user else (supabase_user.user_metadata or {}).get("role", "student")
+
+    return TokenPayload(sub=str(supabase_user.id), role=role)
 
 
 def require_role(*allowed_roles: str):
