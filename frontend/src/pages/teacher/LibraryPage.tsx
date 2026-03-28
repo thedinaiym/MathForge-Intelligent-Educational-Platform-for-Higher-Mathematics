@@ -2,7 +2,7 @@
  * LibraryPage — Teacher Interface
  *
  * Tab 1 – "Parse Book":  Upload a textbook PDF → RAG extracts templates
- *          (existing functionality, unchanged)
+ *          Requires teacher or admin role.
  *
  * Tab 2 – "Generate Task": Select topic (category) + difficulty →
  *          POST /api/tasks/generate → display the generated SymPy task
@@ -12,9 +12,10 @@ import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDropzone } from 'react-dropzone'
 import { useMutation } from '@tanstack/react-query'
-import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers } from 'lucide-react'
+import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers, Lock } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
+import { useAuthStore } from '../../store/authStore'
 import MathRenderer from '../../components/math/MathRenderer'
 import Button from '../../components/ui/Button'
 
@@ -47,6 +48,9 @@ interface GenerateResponse {
 export default function LibraryPage() {
   const { t } = useTranslation()
   const [tab, setTab] = useState<Tab>('parse')
+  const { user } = useAuthStore()
+
+  const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'admin'
 
   return (
     <div className="max-w-2xl">
@@ -62,7 +66,27 @@ export default function LibraryPage() {
         </TabButton>
       </div>
 
-      {tab === 'parse' ? <ParseBookTab /> : <GenerateTaskTab />}
+      {tab === 'parse'
+        ? (isTeacherOrAdmin ? <ParseBookTab /> : <AccessDeniedBanner />)
+        : <GenerateTaskTab />
+      }
+    </div>
+  )
+}
+
+// ── Access denied banner (shown to students on Parse tab) ─────────────────────
+
+function AccessDeniedBanner() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col items-center gap-3 py-14 px-6 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+      <Lock size={32} className="text-slate-300" />
+      <p className="text-sm font-semibold text-slate-600">
+        {t('library.parseTeacherOnly', 'This feature is for teachers and admins only.')}
+      </p>
+      <p className="text-xs text-slate-400">
+        {t('library.parseTeacherOnlyHint', 'Switch to the "Generate Task" tab to try sample problems.')}
+      </p>
     </div>
   )
 }
@@ -116,7 +140,6 @@ function ParseBookTab() {
       if (!file) throw new Error('No file selected')
       const form = new FormData()
       form.append('file', file)
-      // Let Axios set the Content-Type with boundary automatically
       const { data } = await api.post<UploadPdfResponse>('/teachers/upload-pdf', form)
       return data
     },
@@ -125,7 +148,6 @@ function ParseBookTab() {
 
   const phase = useParsePhase(mutation.isPending)
 
-  // Human-readable error from API detail field
   const errorMsg: string = (() => {
     if (!mutation.error) return ''
     const detail = (mutation.error as any)?.response?.data?.detail
@@ -218,7 +240,7 @@ function ParseBookTab() {
 
 function GenerateTaskTab() {
   const { t } = useTranslation()
-  const { data: categories, isLoading } = useCategories()
+  const { data: categories = [], isLoading, isError } = useCategories()
 
   const [categoryId, setCategoryId] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
@@ -236,6 +258,13 @@ function GenerateTaskTab() {
 
   const canGenerate = categoryId.length > 0
 
+  // Placeholder text for the subject dropdown
+  const subjectPlaceholder = isLoading
+    ? t('common.loading')
+    : isError
+      ? t('common.error')
+      : t('teacher.selectCategory')
+
   return (
     <div>
       {/* Controls */}
@@ -246,11 +275,13 @@ function GenerateTaskTab() {
           <select
             value={categoryId}
             onChange={(e) => { setCategoryId(e.target.value); mutation.reset() }}
+            disabled={isLoading || isError}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm
-              focus:outline-none focus:ring-2 focus:ring-amber-400"
+              focus:outline-none focus:ring-2 focus:ring-amber-400
+              disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
           >
-            <option value="">{isLoading ? t('common.loading') : t('common.noData')}</option>
-            {categories?.map((cat) => (
+            <option value="">{subjectPlaceholder}</option>
+            {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
           </select>
@@ -303,7 +334,9 @@ function GenerateTaskTab() {
 
       {mutation.isError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-          <p className="text-sm text-red-600">{t('common.error')}</p>
+          <p className="text-sm text-red-600">
+            {(mutation.error as any)?.response?.data?.detail ?? t('common.error')}
+          </p>
         </div>
       )}
     </div>

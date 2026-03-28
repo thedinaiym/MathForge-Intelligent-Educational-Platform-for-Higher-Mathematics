@@ -3,9 +3,13 @@ import { Outlet } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { useBalance } from '../../hooks/useBalance'
 
 export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Fetch token balance once for the whole dashboard so every page sees it
+  useBalance()
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">

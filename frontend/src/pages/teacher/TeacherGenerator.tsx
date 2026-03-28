@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, RefreshCw } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
+import { useBalance } from '../../hooks/useBalance'
 import { useUIStore } from '../../store/uiStore'
 import Button from '../../components/ui/Button'
 
@@ -166,6 +167,7 @@ export default function TeacherGenerator() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { tokenBalance } = useUIStore()
+  const { isLoading: balanceLoading } = useBalance()
 
   const [form, setForm] = useState<FormState>({
     category_id: '',
@@ -238,7 +240,7 @@ export default function TeacherGenerator() {
   ]
   const phaseLabel = usePhaseLabel(mutation.isPending, phases)
 
-  const canGenerate = tokenBalance >= 5 && !!form.category_id && !mutation.isPending
+  const canGenerate = (balanceLoading || tokenBalance >= 5) && !!form.category_id && !mutation.isPending
 
   const handleReset = () => {
     if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null }
@@ -251,7 +253,7 @@ export default function TeacherGenerator() {
       <h1 className="text-2xl font-bold text-slate-800 mb-1">{t('teacher.title')}</h1>
       <p className="text-sm text-slate-500 mb-6">{t('teacher.subtitle')}</p>
 
-      {tokenBalance < 5 && (
+      {!balanceLoading && tokenBalance < 5 && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
           {t('teacher.noTokens')}
         </div>
