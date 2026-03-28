@@ -3,16 +3,19 @@ SQLAlchemy ORM models matching the CLAUDE.md database schema.
 All user-facing text uses JSONB columns for multilingual support.
 """
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum as SAEnum,
     Float,
     ForeignKey,
+    Integer,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -152,3 +155,29 @@ class StudentTracking(Base):
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="tracking_records")
     category: Mapped["Category"] = relationship("Category", back_populates="tracking_records")
+
+
+class ActivityLog(Base):
+    """
+    Daily activity counter per user — drives the GitHub-style heatmap.
+
+    One row per (user, date). Upserted via PostgreSQL ON CONFLICT DO UPDATE
+    so the count increments atomically rather than inserting duplicates.
+    """
+
+    __tablename__ = "activity_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    activity_date: Mapped[date] = mapped_column(Date, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "activity_date", name="uq_activity_user_date"),
+    )
+
+    user: Mapped["User"] = relationship("User")

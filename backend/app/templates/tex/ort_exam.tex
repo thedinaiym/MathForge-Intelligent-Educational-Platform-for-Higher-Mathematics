@@ -1,0 +1,101 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{enumitem}
+\geometry{left=2cm, right=2cm, top=2cm, bottom=2cm}
+
+\begin{document}
+
+% ── Header ──────────────────────────────────────────────────────────────────
+\begin{center}
+    \Large\textbf{ {{ title }} }\\[4pt]
+    \large {{ part_title }}
+\end{center}
+\vspace{0.6cm}
+
+{% if part == 1 %}
+% ── Part 1: Comparison problems ─────────────────────────────────────────────
+\noindent
+\textbf{Инструкция.} Сравните значения в Колонке А и Колонке Б.
+Выберите ответ:
+\quad А — если А $>$ Б,
+\quad Б — если А $<$ Б,
+\quad В — если А $=$ Б,
+\quad Г — если определить невозможно.
+
+\vspace{0.5cm}
+
+\begin{center}
+\begin{tabular}{|c|p{5.5cm}|p{5.5cm}|}
+\hline
+\textbf{№} & \centering\textbf{Колонка А} & \centering\arraybackslash\textbf{Колонка Б} \\
+\hline
+{% for p in problems %}
+{{ p.number }} &
+\centering {{ p.col_a_label }} \newline {\small\textit{ {{ p.given }} }} &
+\centering\arraybackslash {{ p.col_b_label }} \\
+\hline
+{% endfor %}
+\end{tabular}
+\end{center}
+
+{% else %}
+% ── Part 2: Multiple-choice problems ────────────────────────────────────────
+\noindent
+\textbf{Инструкция.} Для каждого задания выберите один правильный ответ из пяти
+предложенных вариантов (А, Б, В, Г, Д).
+
+\vspace{0.4cm}
+
+{% for p in problems %}
+\noindent\textbf{ {{ p.number }}.} {{ p.question }}
+
+\vspace{0.2cm}
+\noindent
+{% for i in range(5) %}
+\textbf{ {{ mc_labels[i] }}) } ${{ p.choices[i] }}$\quad
+{% endfor %}
+
+\vspace{0.5cm}
+{% endfor %}
+{% endif %}
+
+% ── Answer key (teacher page) ────────────────────────────────────────────────
+\newpage
+\begin{center}
+    \Large\textbf{Ключ ответов (для учителя)}\\[4pt]
+    \large {{ part_title }}
+\end{center}
+\vspace{0.5cm}
+
+\begin{center}
+\begin{tabular}{|c|c||c|c||c|c||c|c||c|c|}
+\hline
+\textbf{№} & \textbf{Отв.} &
+\textbf{№} & \textbf{Отв.} &
+\textbf{№} & \textbf{Отв.} &
+\textbf{№} & \textbf{Отв.} &
+\textbf{№} & \textbf{Отв.} \\
+\hline
+{% set rows = (answer_key | length + 4) // 5 %}
+{% for row in range(rows) %}
+{% for col in range(5) %}
+{% set idx = row + col * rows %}
+{% if idx < answer_key | length %}
+{{ idx + 1 }} & {{ answer_key[idx] }} &
+{% else %}
+  &   &
+{% endif %}
+{% endfor %}
+\\
+\hline
+{% endfor %}
+\end{tabular}
+\end{center}
+
+\end{document}

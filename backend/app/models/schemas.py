@@ -176,6 +176,85 @@ class StudentTrackingResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Stats / Heatmap / Mastery
+# ---------------------------------------------------------------------------
+
+class HeatmapEntry(BaseModel):
+    date: str   # "YYYY-MM-DD"
+    count: int
+
+
+class MasteryEntry(BaseModel):
+    category_id: uuid.UUID
+    category_name: str
+    mastery_percentage: float   # 0.0 – 100.0
+
+
+class StatsResponse(BaseModel):
+    heatmap_data: list[HeatmapEntry]
+    mastery_data: list[MasteryEntry]
+    total_analyses: int
+
+
+# ---------------------------------------------------------------------------
+# Adaptive task generation
+# ---------------------------------------------------------------------------
+
+class AdaptiveGenerateRequest(BaseModel):
+    difficulty: DifficultyType = "easy"
+    count: int = Field(default=10, ge=1, le=50)
+
+
+# ---------------------------------------------------------------------------
+# ORT (Общереспубликанское тестирование) — Kyrgyz National Testing
+# ---------------------------------------------------------------------------
+
+OrtPartType = Literal[1, 2]
+
+
+class OrtGenerateRequest(BaseModel):
+    """Request body for POST /api/ort/generate."""
+    part: OrtPartType = Field(
+        description="1 = comparison (Column A vs B), 2 = multiple-choice (5 options А–Д)"
+    )
+    count: int = Field(default=30, ge=1, le=30)
+    locale: LocaleType = "ru"
+
+
+class OrtComparisonProblem(BaseModel):
+    """One comparison problem from ORT Part 1."""
+    number: int
+    given: str                  # localised condition, e.g. "$a = 5$"
+    col_a_label: str            # LaTeX expression for Column A
+    col_b_label: str            # LaTeX expression for Column B
+    col_a_value: str            # computed value LaTeX (for answer key)
+    col_b_value: str            # computed value LaTeX (for answer key)
+    answer_label: Literal["А", "Б", "В", "Г"]  # А>B, A<B, A=B, cannot determine
+
+
+class OrtMcProblem(BaseModel):
+    """One multiple-choice problem from ORT Part 2."""
+    number: int
+    question: str               # localised question text (with concrete numbers)
+    choices: list[str]          # 5 LaTeX strings, one per option А–Д
+    correct_label: Literal["А", "Б", "В", "Г", "Д"]
+
+
+class OrtGenerateResponse(BaseModel):
+    part: OrtPartType
+    problems: list[OrtComparisonProblem] | list[OrtMcProblem]
+    answer_key: list[str]       # ["А", "Б", "В", ...] length == len(problems)
+
+
+class OrtVariantRequest(BaseModel):
+    """Request body for POST /api/tasks/generate-ort."""
+    variant_count: int = Field(
+        default=1, ge=1, le=5,
+        description="Number of independent exam variants to generate (1–5).",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
 

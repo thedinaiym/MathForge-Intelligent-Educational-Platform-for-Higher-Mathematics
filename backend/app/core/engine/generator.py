@@ -91,6 +91,83 @@ class TaskGenerator:
         }
 
     @staticmethod
+    def generate_ort_comparison(template_json: dict[str, Any]) -> dict[str, Any]:
+        """
+        Generate one ORT comparison problem from a DB template_json.
+
+        Expected template_json keys:
+            sympy_expr_A    — SymPy expression string for Column A
+            sympy_expr_B    — SymPy expression string for Column B
+            ranges          — {param: [lo, hi]} integer sampling ranges
+            constraints     — list of SymPy inequality strings (optional)
+            label_A         — LaTeX display string for Column A (optional)
+            label_B         — LaTeX display string for Column B (optional)
+            given_template  — Python .format()-compatible condition string (optional)
+
+        Returns:
+            dict with keys:
+                problem_latex   — LaTeX string for the problem statement
+                answer          — one of "А", "Б", "В", "Г"
+                solution_latex  — step-by-step LaTeX solution string
+                coefficients    — sampled integer values dict
+        """
+        expr_A_str: str = template_json["sympy_expr_A"]
+        expr_B_str: str = template_json["sympy_expr_B"]
+        ranges: dict[str, list[int]] = template_json["ranges"]
+        constraints: list[str] = template_json.get("constraints", [])
+        label_A: str = template_json.get("label_A", f"${expr_A_str}$")
+        label_B: str = template_json.get("label_B", f"${expr_B_str}$")
+        given_tmpl: str = template_json.get("given_template", "")
+
+        coeffs = TaskGenerator._sample_coefficients(ranges, constraints)
+        subs = {sp.Symbol(k): v for k, v in coeffs.items()}
+
+        val_A = sp.sympify(expr_A_str).subs(subs)
+        val_B = sp.sympify(expr_B_str).subs(subs)
+        diff = sp.simplify(val_A - val_B)
+
+        try:
+            f_diff = float(diff)
+            if f_diff > 1e-9:
+                answer, rel_sym = "А", ">"
+            elif f_diff < -1e-9:
+                answer, rel_sym = "Б", "<"
+            else:
+                answer, rel_sym = "В", "="
+        except (TypeError, ValueError):
+            answer, rel_sym = "Г", "?"
+
+        val_A_latex = sp.latex(val_A)
+        val_B_latex = sp.latex(val_B)
+
+        if given_tmpl:
+            given_text = given_tmpl.format(**coeffs)
+        else:
+            given_text = ",\\ ".join(f"${k} = {v}$" for k, v in coeffs.items())
+
+        problem_latex = (
+            f"{given_text}\\qquad"
+            f"\\textbf{{A:}}\\ {label_A}\\qquad"
+            f"\\textbf{{B:}}\\ {label_B}"
+        )
+
+        if answer != "Г":
+            solution_latex = (
+                f"A = {val_A_latex},\\quad B = {val_B_latex}"
+                f"\\quad\\Rightarrow\\quad {val_A_latex} {rel_sym} {val_B_latex}."
+                f"\\quad\\text{{Ответ: {answer}}}"
+            )
+        else:
+            solution_latex = r"\text{Нельзя однозначно определить.}\quad\text{Ответ: Г}"
+
+        return {
+            "problem_latex": problem_latex,
+            "answer": answer,
+            "solution_latex": solution_latex,
+            "coefficients": coeffs,
+        }
+
+    @staticmethod
     def _sample_coefficients(
         ranges: dict[str, list[int]],
         constraints: list[str],

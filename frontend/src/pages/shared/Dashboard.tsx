@@ -48,7 +48,7 @@ const HEATMAP_CSS = `
   .react-calendar-heatmap rect { rx: 2; }
 `
 
-function heatmapClass(value: { count: number } | null): string {
+function heatmapClass(value: { count: number } | null | undefined): string {
   if (!value || value.count === 0) return 'color-empty'
   if (value.count === 1) return 'color-scale-1'
   if (value.count === 2) return 'color-scale-2'

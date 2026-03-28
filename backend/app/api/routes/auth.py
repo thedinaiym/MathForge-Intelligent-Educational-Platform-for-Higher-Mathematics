@@ -7,6 +7,8 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_locale
@@ -25,12 +27,16 @@ async def register_user(
 ):
     """
     Create a User row in our DB after Supabase OAuth completes.
-    Also creates a BillingAccount with 0 token balance.
-    Idempotent — returns existing user if already registered.
+    Also creates a BillingAccount with 20 free tokens.
+
+    Fully idempotent: safe against duplicate calls fired by React StrictMode
+    or double OAuth redirects. Uses a fast SELECT-first path for the common
+    case (subsequent logins), then catches any INSERT race with an
+    IntegrityError fallback so the endpoint never returns 500.
     """
     user_id = uuid.UUID(current_user.sub)
 
-    # Upsert: create on first login, update fields on subsequent calls
+    # ── Fast path: user already exists (most logins after the first) ──────────
     result = await db.execute(select(User).where(User.id == user_id))
     existing = result.scalar_one_or_none()
     if existing:
@@ -41,20 +47,43 @@ async def register_user(
         await db.refresh(existing)
         return existing
 
-    user = User(
+    # ── Slow path: first registration ─────────────────────────────────────────
+    new_user = User(
         id=user_id,
         name=payload.name,
         role=payload.role,
         locale=payload.locale,
     )
-    # Every new user gets 20 free tokens to start
-    billing = BillingAccount(user_id=user_id, token_balance=20.0)
+    db.add(new_user)
 
-    db.add(user)
-    db.add(billing)
-    await db.commit()
-    await db.refresh(user)
-    return user
+    # ON CONFLICT DO NOTHING keeps billing idempotent even if user insert wins
+    # the race but billing was already created by a concurrent request.
+    billing_stmt = (
+        pg_insert(BillingAccount)
+        .values(user_id=user_id, token_balance=20.0)
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+
+    try:
+        await db.flush()           # send INSERT for User; raises IntegrityError on dupe
+        await db.execute(billing_stmt)
+        await db.commit()
+        await db.refresh(new_user)
+        return new_user
+
+    except IntegrityError:
+        # A concurrent request beat us to the INSERT — roll back and return
+        # the row that was already committed by the winning request.
+        await db.rollback()
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            # Should never happen, but guard anyway.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Registration conflict could not be resolved.",
+            )
+        return user
 
 
 @router.patch("/me", response_model=UserResponse)

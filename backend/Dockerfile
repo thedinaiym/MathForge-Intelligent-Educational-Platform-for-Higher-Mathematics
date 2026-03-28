@@ -1,8 +1,9 @@
-# Используем легковесный образ Python
-FROM python:3.11-slim
+# ── Stage: runtime ────────────────────────────────────────────────────────────
+FROM python:3.11-slim-bookworm
 
-# Устанавливаем зависимости системы и LaTeX (TexLive для Linux)
-RUN apt-get update && apt-get install -y \
+# System deps + LaTeX (required for PDF generation via pdflatex)
+# NOTE: texlive packages add ~600 MB to the image — expected, not a mistake.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-base \
     texlive-fonts-recommended \
     texlive-fonts-extra \
@@ -12,12 +13,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Копируем зависимости
+# Install Python dependencies first (layer-cached until requirements.txt changes)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем код бэкенда
+# Copy application source
 COPY . .
 
-# Команда для запуска FastAPI
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Render (and Railway) inject PORT at runtime. Default to 8000 for local Docker runs.
+# Shell form is required so $PORT is expanded at container start, not build time.
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
