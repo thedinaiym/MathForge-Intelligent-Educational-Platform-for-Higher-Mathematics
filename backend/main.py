@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort
-from app.db.database import Base, engine
+from app.db.database import Base, engine, AsyncSessionLocal
+from app.db.seed import seed_database
 from app.api import router_admin
 
 app = FastAPI(
@@ -27,7 +28,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    """Create all tables on first run (idempotent — skips existing tables)."""
+    """Create all tables on first run, then seed initial data."""
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -35,6 +36,13 @@ async def startup():
     except Exception as exc:
         print(f"⚠️  DB connection failed on startup: {exc}")
         print("   API will start — fix SUPABASE_DB_URL in backend/.env then restart.")
+        return
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await seed_database(db)
+    except Exception as exc:
+        print(f"⚠️  Seeding failed (non-fatal): {exc}")
 
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])

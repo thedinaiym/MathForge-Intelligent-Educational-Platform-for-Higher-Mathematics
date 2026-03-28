@@ -85,6 +85,7 @@ export default function ProfilePage() {
           >
             <option value="student">{t('profile.role_student')}</option>
             <option value="teacher">{t('profile.role_teacher')}</option>
+            <option value="admin">Admin</option>
           </select>
           {/* ИСПРАВЛЕНИЕ: Отображение ошибки под селектом */}
           {errors.role && <p className="text-sm text-red-500">{errors.role.message}</p>}
@@ -107,7 +108,7 @@ export default function ProfilePage() {
           {errors.locale && <p className="text-sm text-red-500">{errors.locale.message}</p>}
         </div>
 
-        <Button type="submit" loading={mutation.isPending} disabled={!isDirty && !!user}>
+        <Button type="submit" loading={mutation.isPending} disabled={mutation.isPending}>
           {mutation.isSuccess ? t('profile.saved') : t('profile.save')}
         </Button>
 
