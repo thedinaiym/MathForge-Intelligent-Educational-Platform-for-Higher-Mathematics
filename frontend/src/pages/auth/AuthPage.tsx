@@ -118,8 +118,6 @@ export default function AuthPage() {
   const { user } = useAuthStore()
   const [tab, setTab] = useState<Tab>('signin')
   const [loading, setLoading] = useState(false)
-  const [phone, setPhone] = useState('')
-  const [institution, setInstitution] = useState('')
 
   useEffect(() => {
     if (user) navigate('/app/profile', { replace: true })
@@ -214,27 +212,9 @@ export default function AuthPage() {
                 <h1 className="text-xl font-bold text-slate-800 mb-1">
                   {t('auth.signUpTitle')}
                 </h1>
-                <p className="text-slate-500 text-sm mb-5">
+                <p className="text-slate-500 text-sm mb-6">
                   {t('auth.signUpSubtitle')}
                 </p>
-
-                <div className="space-y-3 mb-5">
-                  <Field
-                    label={t('auth.phoneNumber')}
-                    type="tel"
-                    value={phone}
-                    onChange={setPhone}
-                    placeholder="+996 ..."
-                  />
-                  <Field
-                    label={t('auth.institution')}
-                    value={institution}
-                    onChange={setInstitution}
-                    placeholder={t('auth.institutionPlaceholder')}
-                  />
-                </div>
-
-                <Divider label={t('auth.continueWith')} />
 
                 <OAuthButtons
                   loading={loading}

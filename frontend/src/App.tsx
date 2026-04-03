@@ -202,7 +202,7 @@ function AuthSync() {
           if (!initialized) {
             markInitialized()
           } else {
-            navigate('/app/profile', { replace: true })
+            navigate('/app/dashboard', { replace: true })
           }
         }
 

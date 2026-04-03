@@ -140,9 +140,9 @@ function VideoCard({ video }: { video: (typeof VIDEOS)[number] }) {
             <Eye size={11} />
             {video.views} {t('videos.views')}
           </span>
-          <button className="text-amber-400 hover:text-amber-300 text-xs font-semibold transition-colors">
-            {t('videos.watchNow')} →
-          </button>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 border border-slate-600 font-medium">
+            {t('videos.comingSoon')}
+          </span>
         </div>
       </div>
     </div>

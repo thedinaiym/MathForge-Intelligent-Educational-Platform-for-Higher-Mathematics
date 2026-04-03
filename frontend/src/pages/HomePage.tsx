@@ -73,7 +73,7 @@ function Navbar() {
               key={loc}
               onClick={() => i18n.changeLanguage(loc)}
               className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
-                i18n.language === loc
+                (i18n.resolvedLanguage ?? i18n.language) === loc
                   ? 'bg-amber-500 text-white'
                   : 'bg-white/10 text-white/60 hover:bg-white/20'
               }`}

@@ -47,11 +47,11 @@
   },
   "home": {
     "hero": "AI-Powered Math Learning",
-    "heroSubtitle": "University-level Linear Algebra and Calculus with AI-powered feedback and zero hallucinations",
+    "heroSubtitle": "University-level Linear Algebra and Calculus with AI-powered feedback and guaranteed math accuracy",
     "getStarted": "Get Started",
     "learnMore": "Learn More",
     "statAccuracy": "Math Accuracy",
-    "statHallucinations": "AI Hallucinations",
+    "statHallucinations": "Math Errors",
     "statLanguages": "Languages Supported",
     "featuresLabel": "Why MathForge",
     "featuresTitle": "Everything you need to master university math",
@@ -281,7 +281,12 @@
     "generateBtn": "Generate Practice",
     "generating": "Generating…",
     "practiceProblems": "Practice problems",
-    "teacherNote": "Mastery tracking is shown for student accounts. Your activity heatmap is above."
+    "teacherNote": "Mastery tracking is shown for student accounts. Your activity heatmap is above.",
+    "errorTitle": "Could not load dashboard",
+    "errorSubtitle": "The server may be starting up. Please try again.",
+    "retry": "Retry",
+    "dailyBonus": "+10 daily tokens added",
+    "dailyBonusHint": "Come back tomorrow for more free tokens!"
   },
   "footer": {
     "tagline": "Smart math education for university students across Central Asia.",
@@ -325,6 +330,7 @@
     "title": "Math Crash Courses",
     "subtitle": "Short, focused video lessons on the topics that matter most in your university exams.",
     "watchNow": "Watch",
+    "comingSoon": "Coming Soon",
     "views": "views",
     "comingSoonHint": "Full video library launching soon — sign up to be notified.",
     "notifyMe": "Notify me when videos go live",

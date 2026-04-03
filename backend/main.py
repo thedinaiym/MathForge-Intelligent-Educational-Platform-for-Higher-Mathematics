@@ -86,6 +86,11 @@ async def startup():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # Additive column migration — safe to run every restart
+            await conn.execute(text(
+                "ALTER TABLE billing_accounts "
+                "ADD COLUMN IF NOT EXISTS last_daily_bonus DATE"
+            ))
         print("✅ DB tables verified/created.")
     except Exception as exc:
         print(f"⚠️  DB connection failed: {exc}")

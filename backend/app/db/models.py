@@ -60,6 +60,8 @@ class BillingAccount(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     token_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # Date of last daily bonus credit (NULL = never received)
+    last_daily_bonus: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
 
     __table_args__ = (
         CheckConstraint("token_balance >= 0", name="ck_billing_token_balance_non_negative"),

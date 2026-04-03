@@ -8,6 +8,7 @@ import api from '../../lib/axios'
 import { useAuthStore, type UserLocale, type UserRole } from '../../store/authStore'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import i18n from '../../i18n'
 
 interface ProfileFormData {
   name: string
@@ -29,7 +30,7 @@ export default function ProfilePage() {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<ProfileFormData>({
     resolver: yupResolver(schema),
     defaultValues: { 
@@ -57,6 +58,9 @@ export default function ProfilePage() {
     },
     onSuccess: (data) => {
       setUser({ id: data.id, name: data.name, role: data.role, locale: data.locale })
+      // Sync UI language immediately — no reload needed
+      i18n.changeLanguage(data.locale)
+      localStorage.setItem('mathforge_lang', data.locale)
     },
   })
 

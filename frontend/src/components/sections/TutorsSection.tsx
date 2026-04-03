@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { Star, Clock, BookOpen, CheckCircle } from 'lucide-react'
+import { useAuthStore } from '../../store/authStore'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -178,9 +180,15 @@ function TutorCard({
 
 export default function TutorsSection() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [toast, setToast] = useState<string | null>(null)
 
   const handleBook = (name: string) => {
+    if (!user) {
+      navigate('/auth')
+      return
+    }
     setToast(name)
     setTimeout(() => setToast(null), 4000)
   }

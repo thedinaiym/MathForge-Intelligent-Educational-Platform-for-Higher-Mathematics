@@ -136,12 +136,14 @@ export default function Dashboard() {
   yearAgo.setFullYear(yearAgo.getFullYear() - 1)
 
   // ── Stats query ────────────────────────────────────────────────────────────
-  const { data: stats, isLoading } = useQuery<StatsResponse>({
+  const { data: stats, isLoading, isError } = useQuery<StatsResponse>({
     queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
       const { data } = await api.get<StatsResponse>('/study/stats')
       return data
     },
+    retry: 1,
+    staleTime: 60_000,
   })
 
   // ── Adaptive practice mutation ─────────────────────────────────────────────
@@ -168,6 +170,27 @@ export default function Dashboard() {
         <div className="h-8 w-56 bg-slate-200 rounded-lg" />
         <div className="h-40 bg-slate-100 rounded-2xl" />
         <div className="h-48 bg-slate-100 rounded-2xl" />
+      </div>
+    )
+  }
+
+  // ── Error state — backend unavailable ─────────────────────────────────────
+  if (isError) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center gap-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <Brain size={28} className="text-slate-400" />
+        </div>
+        <div>
+          <p className="font-semibold text-slate-700">{t('dashboard.errorTitle')}</p>
+          <p className="text-sm text-slate-400 mt-1">{t('dashboard.errorSubtitle')}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+        >
+          {t('dashboard.retry')}
+        </button>
       </div>
     )
   }

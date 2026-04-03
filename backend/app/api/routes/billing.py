@@ -14,6 +14,7 @@ Usage costs:
   PDF generate — 5 tokens
 """
 import uuid
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -69,14 +70,33 @@ async def _get_account(user_id: uuid.UUID, db: AsyncSession) -> BillingAccount:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+DAILY_BONUS_TOKENS = 10
+DAILY_BONUS_THRESHOLD = 20  # only top-up if balance is below this
+
+
 @router.get("/balance", response_model=BillingBalanceResponse)
 async def get_balance(
     current_user: TokenPayload = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the authenticated user's current token balance."""
+    """
+    Return the authenticated user's current token balance.
+    Also applies a daily bonus of +10 tokens when balance < 20 and
+    the bonus has not yet been awarded today.
+    """
     user_id = uuid.UUID(current_user.sub)
     account = await _get_account(user_id, db)
+
+    today = date.today()
+    if (
+        account.token_balance < DAILY_BONUS_THRESHOLD
+        and (account.last_daily_bonus is None or account.last_daily_bonus < today)
+    ):
+        account.token_balance += DAILY_BONUS_TOKENS
+        account.last_daily_bonus = today
+        await db.commit()
+        await db.refresh(account)
+
     return account
 
 

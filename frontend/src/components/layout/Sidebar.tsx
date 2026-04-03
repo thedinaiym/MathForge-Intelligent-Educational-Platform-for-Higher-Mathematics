@@ -103,7 +103,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {user?.role === 'student' && (
           <>
-            <NavLink to="/app/student" className={navLinkClass} onClick={onClose}>
+            <NavLink to="/app/student" end className={navLinkClass} onClick={onClose}>
               <GraduationCap size={18} /> {t('nav.student')}
             </NavLink>
             <NavLink to="/app/student/homework" className={navLinkClass} onClick={onClose}>
@@ -142,7 +142,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               key={loc}
               onClick={() => handleLocaleChange(loc)}
               className={`flex-1 py-1 text-xs rounded font-medium transition-colors ${
-                i18n.language === loc
+                (i18n.resolvedLanguage ?? i18n.language) === loc
                   ? 'bg-amber-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-amber-100'
               }`}
