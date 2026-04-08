@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_locale
 from app.db.database import get_db
-from app.db.models import BillingAccount
+from app.db.models import ActivityLog, BillingAccount
 from app.models.schemas import (
     OrtComparisonProblem,
     OrtGenerateRequest,
@@ -109,6 +111,22 @@ async def generate_ort(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+
+    # Log activity for heatmap
+    try:
+        today = date.today()
+        stmt = (
+            pg_insert(ActivityLog)
+            .values(id=uuid.uuid4(), user_id=user_id, activity_date=today, count=1)
+            .on_conflict_do_update(
+                constraint="uq_activity_user_date",
+                set_={"count": ActivityLog.__table__.c.count + 1},
+            )
+        )
+        await db.execute(stmt)
+        await db.commit()
+    except Exception:
+        pass
 
     return _build_response(payload, raw, answer_key)
 

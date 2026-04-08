@@ -15,7 +15,7 @@ export default function Header() {
           <span>
             {user.name}
             <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 font-medium capitalize">
-              {user.role}
+              {user.role === 'admin' ? 'teacher' : user.role}
             </span>
           </span>
         )}

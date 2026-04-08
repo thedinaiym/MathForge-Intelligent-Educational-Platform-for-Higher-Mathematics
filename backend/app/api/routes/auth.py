@@ -27,7 +27,7 @@ async def register_user(
 ):
     """
     Create a User row in our DB after Supabase OAuth completes.
-    Also creates a BillingAccount with 20 free tokens.
+    Also creates a BillingAccount with 50 free tokens.
 
     Fully idempotent: safe against duplicate calls fired by React StrictMode
     or double OAuth redirects. Uses a fast SELECT-first path for the common
@@ -60,7 +60,7 @@ async def register_user(
     # the race but billing was already created by a concurrent request.
     billing_stmt = (
         pg_insert(BillingAccount)
-        .values(user_id=user_id, token_balance=20.0)
+        .values(user_id=user_id, token_balance=50.0)
         .on_conflict_do_nothing(index_elements=["user_id"])
     )
 
@@ -105,7 +105,7 @@ async def update_me(
             role=payload.role,
             locale=payload.locale,
         )
-        billing = BillingAccount(user_id=user_id, token_balance=20.0)
+        billing = BillingAccount(user_id=user_id, token_balance=50.0)
         db.add(user)
         db.add(billing)
     else:

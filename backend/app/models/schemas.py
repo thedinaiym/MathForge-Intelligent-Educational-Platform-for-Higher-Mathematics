@@ -123,8 +123,10 @@ class GenerateTaskRequest(BaseModel):
     category_id: uuid.UUID
     difficulty: DifficultyType
     count: int = Field(default=10, ge=1, le=50)
-    variant_count: int = Field(default=1, ge=1, le=5)
+    variant_count: int = Field(default=1, ge=1, le=50)
     template_id: uuid.UUID | None = Field(default=None)
+    # multi-topic selection: if provided, overrides template_id and filters by these IDs
+    template_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class GeneratedTask(BaseModel):

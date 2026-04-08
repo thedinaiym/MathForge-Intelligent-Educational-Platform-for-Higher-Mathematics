@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag
+from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag, avatar
 from app.db.database import Base, engine, AsyncSessionLocal
 from app.db.seed import seed_database
 from app.api import router_admin
@@ -86,10 +86,14 @@ async def startup():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            # Additive column migration — safe to run every restart
+            # Additive column migrations — safe to run every restart
             await conn.execute(text(
                 "ALTER TABLE billing_accounts "
                 "ADD COLUMN IF NOT EXISTS last_daily_bonus DATE"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE users "
+                "ADD COLUMN IF NOT EXISTS teacher_id UUID REFERENCES users(id) ON DELETE SET NULL"
             ))
         print("✅ DB tables verified/created.")
     except Exception as exc:
@@ -131,6 +135,7 @@ app.include_router(router_admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(teacher.router, prefix="/api/teachers", tags=["teachers"])
 app.include_router(ort.router, prefix="/api/ort", tags=["ort"])
 app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
+app.include_router(avatar.router, prefix="/api/avatar", tags=["avatar"])
 
 
 @app.get("/")

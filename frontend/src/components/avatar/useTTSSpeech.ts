@@ -1,15 +1,15 @@
 /**
- * useTTSSpeech — calls the Phase 19 TTS microservice and returns a blob URL
+ * useTTSSpeech — calls the TTS microservice and returns a blob URL
  * ready to feed into <AvatarTutor audioUrl={...} />.
  *
+ * Two modes:
+ *   speak()      → POST /api/tts/generate         → MP3 blob URL (simple)
+ *   speakTimed() → POST /api/tts/generate-with-timing → MP3 blob URL + word boundaries
+ *
  * Usage:
- *   const { audioUrl, speak, isSpeaking, clear } = useTTSSpeech()
- *
- *   // Speak a sentence:
- *   await speak('Привет, я ваш репетитор!', 'ru', 'female')
- *
- *   // Plug the URL directly into AvatarTutor:
- *   <AvatarTutor audioUrl={audioUrl} onSpeechEnd={clear} />
+ *   const { audioUrl, wordBoundaries, speak, speakTimed, isSpeaking, clear } = useTTSSpeech()
+ *   await speakTimed('Привет, я ваш репетитор!', 'ru', 'female')
+ *   <AvatarTutor audioUrl={audioUrl} wordBoundaries={wordBoundaries} onSpeechEnd={clear} />
  */
 import { useCallback, useRef, useState } from 'react'
 
@@ -18,86 +18,123 @@ const TTS_BASE_URL = import.meta.env.VITE_TTS_URL ?? 'http://localhost:8001'
 export type TTSLanguage  = 'kg' | 'ru' | 'en'
 export type TTSVoiceType = 'male' | 'female'
 
+export interface WordBoundary {
+  word:        string
+  offset_ms:   number
+  duration_ms: number
+}
+
 interface TTSSpeechHook {
-  /** Current blob URL for <AvatarTutor> — null while idle or loading. */
-  audioUrl:   string | null
-  /** True while the HTTP request is in-flight. */
-  isLoading:  boolean
-  /** True after audioUrl is set (until clear() is called). */
-  isSpeaking: boolean
-  /** Fetch TTS audio and set audioUrl. */
-  speak: (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<void>
-  /** Revoke the current blob URL and reset state. */
+  audioUrl:        string | null
+  wordBoundaries:  WordBoundary[]
+  isLoading:       boolean
+  isSpeaking:      boolean
+  speak:      (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<void>
+  speakTimed: (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<void>
   clear: () => void
-  /** Last error message, or null. */
   error: string | null
 }
 
 export function useTTSSpeech(): TTSSpeechHook {
-  const [audioUrl,   setAudioUrl]   = useState<string | null>(null)
-  const [isLoading,  setIsLoading]  = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
+  const [audioUrl,       setAudioUrl]       = useState<string | null>(null)
+  const [wordBoundaries, setWordBoundaries] = useState<WordBoundary[]>([])
+  const [isLoading,      setIsLoading]      = useState(false)
+  const [isSpeaking,     setIsSpeaking]     = useState(false)
+  const [error,          setError]          = useState<string | null>(null)
 
-  // Keep ref to current blob URL so we can revoke it on the next call
   const prevUrlRef = useRef<string | null>(null)
 
-  const clear = useCallback(() => {
+  const _revokePrev = () => {
     if (prevUrlRef.current) {
       URL.revokeObjectURL(prevUrlRef.current)
       prevUrlRef.current = null
     }
+  }
+
+  const _reset = () => {
+    _revokePrev()
     setAudioUrl(null)
+    setWordBoundaries([])
     setIsSpeaking(false)
     setError(null)
+  }
+
+  const clear = useCallback(() => {
+    _reset()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** Simple mode — returns MP3 blob URL, no timing data. */
   const speak = useCallback(async (
     text:      string,
     language:  TTSLanguage  = 'ru',
     voiceType: TTSVoiceType = 'female',
   ) => {
     if (!text.trim()) return
-
-    // Revoke previous blob URL to free memory
-    if (prevUrlRef.current) {
-      URL.revokeObjectURL(prevUrlRef.current)
-      prevUrlRef.current = null
-    }
-    setAudioUrl(null)
-    setIsSpeaking(false)
-    setError(null)
+    _reset()
     setIsLoading(true)
-
     try {
       const res = await fetch(`${TTS_BASE_URL}/api/tts/generate`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          language,
-          voice_type: voiceType,
-        }),
+        body:    JSON.stringify({ text, language, voice_type: voiceType }),
       })
-
-      if (!res.ok) {
-        const detail = await res.text().catch(() => res.statusText)
-        throw new Error(`TTS service error ${res.status}: ${detail}`)
-      }
-
-      const blob   = await res.blob()
-      const url    = URL.createObjectURL(blob)
+      if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text().catch(() => res.statusText)}`)
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
       prevUrlRef.current = url
-
       setAudioUrl(url)
       setIsSpeaking(true)
-    } catch (err: any) {
-      console.error('[useTTSSpeech]', err)
-      setError(err?.message ?? 'TTS request failed')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'TTS request failed'
+      console.error('[useTTSSpeech]', msg)
+      setError(msg)
     } finally {
       setIsLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { audioUrl, isLoading, isSpeaking, speak, clear, error }
+  /** Timed mode — returns MP3 blob URL AND word-boundary timing for precise lip-sync. */
+  const speakTimed = useCallback(async (
+    text:      string,
+    language:  TTSLanguage  = 'ru',
+    voiceType: TTSVoiceType = 'female',
+  ) => {
+    if (!text.trim()) return
+    _reset()
+    setIsLoading(true)
+    try {
+      const res = await fetch(`${TTS_BASE_URL}/api/tts/generate-with-timing`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text, language, voice_type: voiceType }),
+      })
+      if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text().catch(() => res.statusText)}`)
+
+      const json: {
+        audio_base64:    string
+        word_boundaries: WordBoundary[]
+      } = await res.json()
+
+      // Convert base64 → Blob → Object URL
+      const bytes  = Uint8Array.from(atob(json.audio_base64), c => c.charCodeAt(0))
+      const blob   = new Blob([bytes], { type: 'audio/mpeg' })
+      const url    = URL.createObjectURL(blob)
+
+      prevUrlRef.current = url
+      setAudioUrl(url)
+      setWordBoundaries(json.word_boundaries ?? [])
+      setIsSpeaking(true)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'TTS request failed'
+      console.error('[useTTSSpeech]', msg)
+      setError(msg)
+    } finally {
+      setIsLoading(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return { audioUrl, wordBoundaries, isLoading, isSpeaking, speak, speakTimed, clear, error }
 }

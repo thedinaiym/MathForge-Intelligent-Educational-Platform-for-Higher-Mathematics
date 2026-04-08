@@ -14,6 +14,7 @@ import { ArrowLeft, BookOpen, Brain, Calculator, ChevronRight, FileQuestion, Rot
 import api from '../../lib/axios'
 import { useCategories, type Category } from '../../hooks/useCategories'
 import { useQueryClient } from '@tanstack/react-query'
+import { useMathStore } from '../../store/mathStore'
 import { InlineMath } from 'react-katex'
 import 'katex/dist/katex.min.css'
 
@@ -139,6 +140,7 @@ function OrtPart1Display({
   userAnswers,
   onAnswer,
   onReveal,
+  onAnalyze,
 }: {
   problems: OrtComparisonProblem[]
   answers: string[]
@@ -146,6 +148,7 @@ function OrtPart1Display({
   userAnswers: Record<number, string>
   onAnswer: (num: number, ans: string) => void
   onReveal: () => void
+  onAnalyze: (problemText: string) => void
 }) {
   const { t } = useTranslation()
   const choices = ['А', 'Б', 'В', 'Г']
@@ -208,6 +211,14 @@ function OrtPart1Display({
                 )
               })}
             </div>
+            {revealed && selected && selected !== correct && (
+              <button
+                onClick={() => onAnalyze(`Сравните: ${p.col_a_label} и ${p.col_b_label}`)}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 font-medium underline underline-offset-2"
+              >
+                <Brain size={11} /> {t('student.ort.analyzeStep')}
+              </button>
+            )}
           </div>
         )
       })}
@@ -238,6 +249,7 @@ function OrtPart2Display({
   userAnswers,
   onAnswer,
   onReveal,
+  onAnalyze,
 }: {
   problems: OrtMcProblem[]
   answers: string[]
@@ -245,6 +257,7 @@ function OrtPart2Display({
   userAnswers: Record<number, string>
   onAnswer: (num: number, ans: string) => void
   onReveal: () => void
+  onAnalyze: (problemText: string) => void
 }) {
   const { t } = useTranslation()
   const labels = ['А', 'Б', 'В', 'Г', 'Д']
@@ -295,6 +308,14 @@ function OrtPart2Display({
                 )
               })}
             </div>
+            {revealed && selected && selected !== correct && (
+              <button
+                onClick={() => onAnalyze(p.question)}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 font-medium underline underline-offset-2"
+              >
+                <Brain size={11} /> {t('student.ort.analyzeStep')}
+              </button>
+            )}
           </div>
         )
       })}
@@ -374,7 +395,11 @@ function CategoryDetailPanel({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(['easy', 'medium', 'hard'] as const).map((diff) => (
-          <div key={diff} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
+          <button
+            key={diff}
+            onClick={onAnalyze}
+            className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm text-left hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
+          >
             <div className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold mb-2 ${
               diff === 'easy' ? 'bg-green-100 text-green-700' :
               diff === 'medium' ? 'bg-amber-100 text-amber-700' :
@@ -383,7 +408,8 @@ function CategoryDetailPanel({
               {t(`student.difficulty.${diff}`)}
             </div>
             <p className="text-xs text-slate-500">{t(`student.difficulty.${diff}Desc`)}</p>
-          </div>
+            <p className="text-xs text-slate-400 mt-2 font-medium">→ {t('student.category.goToAnalyzer')}</p>
+          </button>
         ))}
       </div>
     </div>
@@ -398,6 +424,7 @@ export default function StudentDashboard() {
   const queryClient = useQueryClient()
 
   const { data: categories = [], isLoading: loadingCats, isError: catsError } = useCategories()
+  const { clearSteps, updateStep, setInputMode } = useMathStore()
 
   const [selected, setSelected] = useState<Category | null>(null)
   const [ortPart, setOrtPart] = useState<OrtPart | null>(null)
@@ -434,12 +461,29 @@ export default function StudentDashboard() {
     ortMutation.reset()
   }
 
+  // Re-generate a fresh set for the same part (keeps the part selector hidden)
+  const handleNewSet = () => {
+    if (ortPart) {
+      setUserAnswers({})
+      setRevealed(false)
+      ortMutation.mutate(ortPart)
+    }
+  }
+
   const handleBack = () => {
     if (ortData || ortPart) {
       handleReset()
     } else {
       setSelected(null)
     }
+  }
+
+  // Pre-fill Analyzer with ORT problem text so user can explore why they got it wrong
+  const handleAnalyze = (problemText: string) => {
+    clearSteps()
+    updateStep(0, problemText)
+    setInputMode('manual')
+    navigate('/app/student/analyze')
   }
 
   const isOrt = selected && (
@@ -570,7 +614,7 @@ export default function StudentDashboard() {
               {t('student.ort.problemCount', { count: ortData.problems.length })}
             </span>
             <button
-              onClick={handleReset}
+              onClick={handleNewSet}
               className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
               <RotateCcw size={11} /> {t('student.ort.newSet')}
@@ -583,6 +627,7 @@ export default function StudentDashboard() {
             userAnswers={userAnswers}
             onAnswer={(num, ans) => setUserAnswers((prev) => ({ ...prev, [num]: ans }))}
             onReveal={() => setRevealed(true)}
+            onAnalyze={handleAnalyze}
           />
         </>
       )}
@@ -595,7 +640,7 @@ export default function StudentDashboard() {
               {t('student.ort.problemCount', { count: ortData.problems.length })}
             </span>
             <button
-              onClick={handleReset}
+              onClick={handleNewSet}
               className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
               <RotateCcw size={11} /> {t('student.ort.newSet')}
@@ -608,6 +653,7 @@ export default function StudentDashboard() {
             userAnswers={userAnswers}
             onAnswer={(num, ans) => setUserAnswers((prev) => ({ ...prev, [num]: ans }))}
             onReveal={() => setRevealed(true)}
+            onAnalyze={handleAnalyze}
           />
         </>
       )}

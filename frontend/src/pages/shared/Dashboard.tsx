@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CalendarHeatmap from 'react-calendar-heatmap'
 import 'react-calendar-heatmap/dist/styles.css'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Activity, Brain, ChevronRight, Flame, Target, Trophy, Zap } from 'lucide-react'
+import { Activity, Brain, ChevronRight, Flame, Sparkles, Target, Trophy, X, Zap } from 'lucide-react'
 import api from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 
@@ -123,6 +123,67 @@ function TaskCard({ task, index }: { task: GeneratedTask; index: number }) {
   )
 }
 
+// ── Welcome toast (shows once per browser session) ────────────────────────────
+
+function WelcomeToast({ name }: { name: string }) {
+  const { t } = useTranslation()
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (sessionStorage.getItem('mf_welcomed')) return
+    // Small delay so it slides in after the page loads
+    const id = setTimeout(() => {
+      setVisible(true)
+      sessionStorage.setItem('mf_welcomed', '1')
+    }, 600)
+    return () => clearTimeout(id)
+  }, [])
+
+  // Auto-dismiss after 6 s
+  useEffect(() => {
+    if (!visible) return
+    const id = setTimeout(() => setVisible(false), 6000)
+    return () => clearTimeout(id)
+  }, [visible])
+
+  if (!visible) return null
+
+  return (
+    <div
+      className="fixed bottom-5 right-5 z-50 max-w-sm w-full
+                 bg-amber-500 text-white rounded-2xl shadow-xl
+                 flex items-start gap-3 px-4 py-3.5
+                 animate-[slideUp_0.4s_ease-out]"
+      style={{ animation: 'slideUp 0.4s ease-out' }}
+    >
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <div className="p-1.5 bg-white/20 rounded-xl flex-shrink-0">
+        <Sparkles size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm leading-snug">
+          {t('dashboard.welcomeTitle', { name })}
+        </p>
+        <p className="text-xs text-amber-100 mt-0.5 leading-snug">
+          {t('dashboard.welcomeMotivation')}
+        </p>
+      </div>
+      <button
+        onClick={() => setVisible(false)}
+        className="flex-shrink-0 p-1 hover:bg-white/20 rounded-lg transition-colors"
+        aria-label="Close"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -134,6 +195,11 @@ export default function Dashboard() {
   const today = new Date()
   const yearAgo = new Date(today)
   yearAgo.setFullYear(yearAgo.getFullYear() - 1)
+
+  // ── Ping backend to record visit in heatmap ────────────────────────────────
+  useEffect(() => {
+    api.post('/study/ping').catch(() => {})
+  }, [])
 
   // ── Stats query ────────────────────────────────────────────────────────────
   const { data: stats, isLoading, isError } = useQuery<StatsResponse>({
@@ -200,17 +266,22 @@ export default function Dashboard() {
   const totalAnalyses = stats?.total_analyses ?? 0
   const streak = heatmap.filter((d) => d.count > 0).length   // unique active days
 
+  const firstName = user?.name?.split(' ')[0] ?? ''
+
   return (
     <>
       {/* Amber heatmap colours injected as a global style */}
       <style>{HEATMAP_CSS}</style>
+
+      {/* Welcome toast — once per session */}
+      <WelcomeToast name={firstName} />
 
       <div className="p-6 md:p-8 space-y-8 max-w-4xl mx-auto">
 
         {/* ── Hero header ───────────────────────────────────────────────────── */}
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
-            {t('dashboard.hello', { name: user?.name?.split(' ')[0] ?? '' })}
+            {t('dashboard.hello', { name: firstName })}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
             {t('dashboard.subtitle')}

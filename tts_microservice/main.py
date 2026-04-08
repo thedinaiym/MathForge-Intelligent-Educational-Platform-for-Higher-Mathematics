@@ -28,6 +28,8 @@ import os
 from contextlib import asynccontextmanager
 from typing import Literal, Optional
 
+import base64
+
 import uvicorn
 from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -72,6 +74,20 @@ class TTSRequest(BaseModel):
         if not v:
             raise ValueError("text must not be blank.")
         return v
+
+
+class WordBoundary(BaseModel):
+    word:        str
+    offset_ms:   int
+    duration_ms: int
+
+
+class TTSTimedResponse(BaseModel):
+    audio_base64:    str
+    duration_ms:     int
+    word_boundaries: list[WordBoundary]
+    language:        str
+    voice_type:      str
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -158,6 +174,56 @@ async def generate_speech(req: TTSRequest) -> Response:
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.post("/api/tts/generate-with-timing", response_model=TTSTimedResponse, tags=["tts"])
+async def generate_speech_with_timing(req: TTSRequest) -> TTSTimedResponse:
+    """
+    Generate speech and return base64-encoded MP3 **plus** word-boundary timing.
+
+    Word boundaries are sourced directly from Edge TTS — no extra processing.
+    Offsets are in milliseconds (Edge TTS reports in 100-nanosecond ticks).
+
+    Use this endpoint to drive precise lip-sync in the 3-D avatar:
+    schedule mouth-open/close events per word instead of relying on volume.
+    """
+    logger.info(
+        "TTS-timed | lang=%s voice=%s len=%d",
+        req.language, req.voice_type, len(req.text),
+    )
+
+    try:
+        audio_bytes, boundaries = await _dispatch_timed(req)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    except Exception as exc:
+        logger.exception("TTS timed engine error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"TTS engine error: {exc}",
+        )
+
+    duration_ms = boundaries[-1].offset_ms + boundaries[-1].duration_ms if boundaries else 0
+
+    return TTSTimedResponse(
+        audio_base64    = base64.b64encode(audio_bytes).decode(),
+        duration_ms     = duration_ms,
+        word_boundaries = boundaries,
+        language        = req.language,
+        voice_type      = req.voice_type,
+    )
+
+
+async def _dispatch_timed(req: TTSRequest) -> tuple[bytes, list[WordBoundary]]:
+    if req.language == "kg":
+        from engines.kyrgyz import synthesize_with_timing
+    elif req.language == "ru":
+        from engines.russian import synthesize_with_timing
+    elif req.language == "en":
+        from engines.english import synthesize_with_timing
+    else:
+        raise ValueError(f"Unsupported language: {req.language}")
+    return await synthesize_with_timing(req.text, req.voice_type)
 
 
 async def _dispatch(req: TTSRequest) -> bytes:

@@ -14,6 +14,7 @@ import BillingPage from './pages/shared/BillingPage'
 import StudentAnalyzer from './pages/student/StudentAnalyzer'
 import StudentDashboard from './pages/student/StudentDashboard'
 import HomeworkChecker from './pages/student/HomeworkChecker'
+import PracticePage from './pages/student/PracticePage'
 import TeacherGenerator from './pages/teacher/TeacherGenerator'
 import LibraryPage from './pages/teacher/LibraryPage'
 import AdminDataset from './pages/admin/AdminDataset'
@@ -268,6 +269,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={['student', 'teacher', 'admin']}>
                 <HomeworkChecker />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="student/practice"
+            element={
+              <ProtectedRoute roles={['student', 'teacher', 'admin']}>
+                <PracticePage />
               </ProtectedRoute>
             }
           />

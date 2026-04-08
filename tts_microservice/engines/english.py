@@ -40,3 +40,40 @@ async def synthesize(text: str, voice_type: str = "female") -> bytes:
         )
 
     return b"".join(chunks)
+
+
+async def synthesize_with_timing(
+    text: str, voice_type: str = "female"
+) -> tuple[bytes, list[dict]]:
+    """Return (MP3 bytes, word_boundaries) for English speech.
+
+    Each word boundary dict: {word, offset_ms, duration_ms}.
+    Edge TTS reports offsets in 100-nanosecond ticks — converted to ms here.
+    """
+    import edge_tts
+
+    voice = _VOICES.get(voice_type, _VOICES["female"])
+    logger.info("English TTS-timed: voice=%s len=%d", voice, len(text))
+
+    communicate = edge_tts.Communicate(text=text, voice=voice)
+
+    audio_chunks: list[bytes] = []
+    boundaries:   list[dict]  = []
+
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_chunks.append(chunk["data"])
+        elif chunk["type"] == "WordBoundary":
+            boundaries.append({
+                "word":        chunk.get("text", ""),
+                "offset_ms":   chunk.get("offset", 0) // 10_000,   # 100ns → ms
+                "duration_ms": chunk.get("duration", 0) // 10_000,
+            })
+
+    if not audio_chunks:
+        raise RuntimeError(
+            "Edge TTS returned no audio for English. "
+            "Check internet access and text content."
+        )
+
+    return b"".join(audio_chunks), boundaries

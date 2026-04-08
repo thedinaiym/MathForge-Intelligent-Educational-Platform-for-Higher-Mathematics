@@ -32,7 +32,7 @@ interface TemplateInfo {
 
 interface FormState {
   category_id: string
-  template_id: string        // '' = all topics
+  template_ids: string[]     // empty = all topics
   difficulty: Difficulty
   count: number
   variant_count: number
@@ -171,19 +171,37 @@ export default function TeacherGenerator() {
 
   const [form, setForm] = useState<FormState>({
     category_id: '',
-    template_id: '',
+    template_ids: [],
     difficulty: 'medium',
     count: 10,
     variant_count: 1,
   })
 
-  const set = (key: keyof FormState, value: string | number) =>
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
-  // Reset topic when category changes
+  // Reset topics when category changes
   const handleCategoryChange = (id: string) => {
-    setForm((prev) => ({ ...prev, category_id: id, template_id: '' }))
+    setForm((prev) => ({ ...prev, category_id: id, template_ids: [] }))
   }
+
+  // Toggle a single template in multi-select
+  const toggleTemplate = (id: string) => {
+    setForm((prev) => {
+      const has = prev.template_ids.includes(id)
+      return {
+        ...prev,
+        template_ids: has
+          ? prev.template_ids.filter((t) => t !== id)
+          : [...prev.template_ids, id],
+      }
+    })
+  }
+
+  const selectAllTopics = () =>
+    setForm((prev) => ({ ...prev, template_ids: topicOptions.map((t) => t.id) }))
+  const clearTopics = () =>
+    setForm((prev) => ({ ...prev, template_ids: [] }))
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: categories = [], isLoading: loadingCats } = useCategories()
@@ -200,8 +218,12 @@ export default function TeacherGenerator() {
     staleTime: 5 * 60_000,
   })
 
-  // Filter templates to match selected difficulty (show all if no difficulty match)
-  const topicOptions = templates.filter((t) => t.difficulty === form.difficulty || templates.every((t2) => t2.difficulty !== form.difficulty))
+  // Filter templates to match selected difficulty
+  const topicOptions = templates.filter(
+    (tmpl) =>
+      tmpl.difficulty === form.difficulty ||
+      templates.every((t2) => t2.difficulty !== form.difficulty),
+  )
 
   // ── PDF mutation ───────────────────────────────────────────────────────────
   const blobUrlRef = useRef<string | null>(null)
@@ -215,7 +237,7 @@ export default function TeacherGenerator() {
         count: form.count,
         variant_count: form.variant_count,
       }
-      if (form.template_id) payload.template_id = form.template_id
+      if (form.template_ids.length > 0) payload.template_ids = form.template_ids
 
       const response = await api.post('/tasks/generate/pdf', payload, {
         responseType: 'blob',
@@ -245,6 +267,7 @@ export default function TeacherGenerator() {
   const handleReset = () => {
     if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null }
     mutation.reset()
+    setForm((prev) => ({ ...prev, template_ids: [] }))
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -293,7 +316,7 @@ export default function TeacherGenerator() {
           />
         </div>
 
-        {/* Step 3 — Topic (cascades from category) */}
+        {/* Step 3 — Topic multi-select (cascades from category) */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${
@@ -301,23 +324,67 @@ export default function TeacherGenerator() {
             }`}>3</span>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('teacher.stepTopic')}</span>
           </div>
-          <SelectField
-            label={t('teacher.topic')}
-            value={form.template_id}
-            onChange={(v) => set('template_id', v)}
-            disabled={!form.category_id || loadingTemplates}
-          >
-            <option value="">
-              {!form.category_id
-                ? t('teacher.selectSubjectFirst')
-                : loadingTemplates
-                ? t('common.loading')
-                : t('teacher.allTopics')}
-            </option>
-            {topicOptions.map((tmpl) => (
-              <option key={tmpl.id} value={tmpl.id}>{tmpl.title}</option>
-            ))}
-          </SelectField>
+
+          {!form.category_id ? (
+            <p className="text-sm text-slate-400 px-1">{t('teacher.selectSubjectFirst')}</p>
+          ) : loadingTemplates ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => <div key={i} className="h-9 bg-slate-100 rounded-lg animate-pulse" />)}
+            </div>
+          ) : topicOptions.length === 0 ? (
+            <p className="text-sm text-slate-400 px-1">{t('teacher.noTopics')}</p>
+          ) : (
+            <>
+              {/* Select all / none */}
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xs text-slate-500 font-medium">
+                  {form.template_ids.length === 0
+                    ? t('teacher.allTopicsSelected')
+                    : t('teacher.selectedTopics', { count: form.template_ids.length })}
+                </span>
+                <div className="flex gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={selectAllTopics}
+                    className="text-xs text-amber-600 hover:text-amber-800 font-medium underline underline-offset-2"
+                  >
+                    {t('teacher.selectAll')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearTopics}
+                    className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2"
+                  >
+                    {t('teacher.selectNone')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Checkbox list */}
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
+                {topicOptions.map((tmpl) => {
+                  const checked = form.template_ids.length === 0 || form.template_ids.includes(tmpl.id)
+                  const explicitly = form.template_ids.includes(tmpl.id)
+                  return (
+                    <label
+                      key={tmpl.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-amber-50 ${
+                        explicitly ? 'bg-amber-50/60' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.template_ids.length === 0 ? false : explicitly}
+                        onChange={() => toggleTemplate(tmpl.id)}
+                        className="w-4 h-4 rounded accent-amber-500"
+                      />
+                      <span className="text-sm text-slate-700 leading-snug">{tmpl.title}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Step 4 — Questions & Variants side by side */}
@@ -341,7 +408,7 @@ export default function TeacherGenerator() {
               value={form.variant_count}
               onChange={(v) => set('variant_count', v)}
               min={1}
-              max={5}
+              max={50}
             />
           </div>
         </div>

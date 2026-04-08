@@ -1,0 +1,105 @@
+"""
+Avatar AI Teacher route.
+
+POST /api/avatar/explain
+  Request:  { question: str, language: "en" | "ru" | "kg" }
+  Response: { explanation: str, language: str }
+
+The endpoint calls Groq Llama-3 with a math-teacher persona in the requested
+language.  The frontend then feeds the returned text to the TTS microservice
+to produce spoken audio for the 3-D avatar.
+
+No token cost — it is a teaching aid, not a graded task.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from groq import AsyncGroq
+from pydantic import BaseModel, Field
+
+from app.api.dependencies import get_current_user
+from app.core.config import settings
+from app.models.schemas import TokenPayload
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
+class ExplainRequest(BaseModel):
+    question: str = Field(..., min_length=2, max_length=1_000)
+    language: Literal["en", "ru", "kg"] = "ru"
+
+
+class ExplainResponse(BaseModel):
+    explanation: str
+    language:    str
+
+
+# ── System prompts per language ───────────────────────────────────────────────
+
+_SYSTEM: dict[str, str] = {
+    "en": (
+        "You are Aida, a friendly and enthusiastic math tutor for school students. "
+        "Explain math concepts clearly and step-by-step in English. "
+        "Use simple language. Keep answers concise — 3 to 5 sentences max. "
+        "Encourage the student. Never just give the answer — guide them to think."
+    ),
+    "ru": (
+        "Ты — Айда, дружелюбный и увлечённый репетитор по математике для школьников. "
+        "Объясняй математические понятия чётко и пошагово на русском языке. "
+        "Используй простой язык. Ответы должны быть краткими — максимум 3–5 предложений. "
+        "Подбадривай ученика. Никогда не давай просто ответ — помогай ему думать самому."
+    ),
+    "kg": (
+        "Сен — Айда, мектеп окуучулары үчүн достук мамиледе жана кызыгуу менен "
+        "математика сабагын берген мугалимсиң. "
+        "Математикалык түшүнүктөрдү кыргыз тилинде ачык жана кадам-кадам менен түшүндүр. "
+        "Жөнөкөй тил колдон. Жооптор кыскача болсун — максимум 3–5 сүйлөм. "
+        "Окуучуну мактап коюп жактыр. Жообун эч качан эле берме — аны өзү ойлонуусуна жардам бер."
+    ),
+}
+
+# ── Route ─────────────────────────────────────────────────────────────────────
+
+@router.post("/explain", response_model=ExplainResponse)
+async def explain(
+    body: ExplainRequest,
+    current_user: TokenPayload = Depends(get_current_user),
+) -> ExplainResponse:
+    """
+    Generate a short teaching explanation from the avatar AI tutor.
+
+    The tutor (Aida) answers in the requested language, using Groq Llama-3.
+    """
+    if not settings.groq_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI tutoring is not configured on this server.",
+        )
+
+    system_prompt = _SYSTEM.get(body.language, _SYSTEM["ru"])
+
+    try:
+        client = AsyncGroq(api_key=settings.groq_api_key)
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system",  "content": system_prompt},
+                {"role": "user",    "content": body.question},
+            ],
+            max_tokens=300,
+            temperature=0.7,
+        )
+        explanation = response.choices[0].message.content or ""
+    except Exception as exc:
+        logger.exception("Groq avatar explain error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI service error: {exc}",
+        )
+
+    return ExplainResponse(explanation=explanation.strip(), language=body.language)

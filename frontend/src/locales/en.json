@@ -14,7 +14,8 @@
     "videos": "Videos",
     "news": "News",
     "tagline": "Smart Math Platform",
-    "homework": "Homework Checker"
+    "homework": "Homework Checker",
+    "practice": "Practice"
   },
   "auth": {
     "title": "Welcome to MathForge",
@@ -135,7 +136,8 @@
       "instruction2Header": "Instructions",
       "instruction2Body": "Choose one correct answer from five options (А–Д).",
       "colA": "Column A",
-      "colB": "Column B"
+      "colB": "Column B",
+      "analyzeStep": "Analyze in Step Analyzer"
     },
     "category": {
       "description": "Practice problems are generated dynamically by SymPy with unique random coefficients each time.",
@@ -171,6 +173,12 @@
     "selectCategory": "— Select subject —",
     "selectSubjectFirst": "Select a subject first",
     "allTopics": "— All topics —",
+    "allTopicsSelected": "All topics (no filter)",
+    "selectedTopics": "Selected: {{count}} topic(s)",
+    "selectAll": "Select all",
+    "selectNone": "Clear",
+    "noTopics": "No topics for this difficulty",
+    "variantCountHint": "Max. 50 variants",
     "stepSubject": "Step 1 — Subject",
     "stepDifficulty": "Step 2 — Difficulty",
     "stepTopic": "Step 3 — Topic",
@@ -221,7 +229,17 @@
     "role_admin": "Administrator",
     "locale": "Interface Language",
     "save": "Save Profile",
-    "saved": "Saved successfully!"
+    "saved": "Saved successfully!",
+    "joinClass": "Join a Class",
+    "joinClassLabel": "Teacher ID",
+    "joinClassPlaceholder": "Paste the teacher's ID (UUID)",
+    "joinClassHint": "Ask your teacher for their ID — found in their Profile page.",
+    "joinClassBtn": "Join Class",
+    "joinClassSuccess": "Joined class of {{name}}!",
+    "joinClassError": "Teacher not found. Check the ID.",
+    "yourTeacherId": "Your Teacher ID (share with students):",
+    "myStudents": "My Students",
+    "noStudents": "No students have joined your class yet. Share your Teacher ID above."
   },
   "billing": {
     "title": "Token Balance",
@@ -237,7 +255,11 @@
     "costPdf": "PDF worksheet generation",
     "costFree": "Free tokens on signup",
     "history": "Transaction History",
-    "noHistory": "No transactions yet"
+    "noHistory": "No transactions yet",
+    "payTitle": "Pay via M-Bank",
+    "payInstructions": "Scan the QR code using the M-Bank app and transfer the exact amount.",
+    "tapToCopy": "copy",
+    "payNote": "After payment, message us on WhatsApp — tokens will be credited within a few hours."
   },
   "admin": {
     "title": "Dataset Manager",
@@ -286,7 +308,9 @@
     "errorSubtitle": "The server may be starting up. Please try again.",
     "retry": "Retry",
     "dailyBonus": "+10 daily tokens added",
-    "dailyBonusHint": "Come back tomorrow for more free tokens!"
+    "dailyBonusHint": "Come back tomorrow for more free tokens!",
+    "welcomeTitle": "Welcome back, {{name}}!",
+    "welcomeMotivation": "Every problem you solve makes you stronger. Ready to study today?"
   },
   "footer": {
     "tagline": "Smart math education for university students across Central Asia.",
@@ -383,6 +407,36 @@
     "b3Title": "Calculus: Early Transcendentals",
     "b4Title": "Linear Algebra and Its Applications"
   },
+  "practice": {
+    "title": "Topic Practice",
+    "subtitle": "Generate tasks, solve on paper, upload a photo — AI checks and tracks your progress.",
+    "selectCategory": "Select topic",
+    "selectDifficulty": "Difficulty",
+    "questionCount": "Number of problems",
+    "currentMastery": "Current mastery",
+    "costNote": "1 token per session + 0.5 per check",
+    "startSession": "Start practice",
+    "generating": "Generating tasks…",
+    "generateError": "Could not generate tasks. Please try again.",
+    "noCategories": "No topics found. Contact your administrator.",
+    "uploadSolution": "Upload solution (photo)",
+    "checking": "Checking…",
+    "correct": "Correct!",
+    "wrongGeneric": "Error found. Review and try again.",
+    "checkFailed": "Check failed. Please try again.",
+    "scoreLabel": "Correct",
+    "anticheat": "You left the screen!",
+    "anticheatDetail": "Tab switching was recorded. Return to your tasks.",
+    "anticheatCount": "Switches: {{count}}",
+    "returnToTask": "Return to tasks",
+    "finishSession": "Finish session",
+    "sessionComplete": "Session complete!",
+    "finalScore": "Correct: {{correct}} of {{total}}",
+    "mastery": "Mastery",
+    "time": "Time",
+    "newSession": "New topic",
+    "retry": "Retry"
+  },
   "homework": {
     "title": "Homework Checker",
     "subtitle": "Upload a photo of your handwritten solution. AI will find errors, explain the concept, and give you practice problems.",
@@ -417,5 +471,14 @@
     "confirm": "Confirm",
     "back": "Back",
     "noData": "No data available"
+  },
+  "avatar": {
+    "name": "Aida — AI Tutor",
+    "toggleTitle": "Open AI Tutor",
+    "greeting": "Hello! I'm Aida, your math tutor. Ask me anything about math!",
+    "placeholder": "Ask a math question…",
+    "thinking": "thinking…",
+    "speaking": "speaking…",
+    "error": "Sorry, something went wrong. Please try again."
   }
 }

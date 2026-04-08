@@ -7,17 +7,19 @@ POST /api/tasks/generate/pdf  — generate task list and compile to PDF (Teacher
 """
 import asyncio
 import uuid
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_locale, require_role
 from app.core.engine.generator import TaskGenerator
 from app.db.database import get_db
-from app.db.models import BillingAccount, Category, StudentTracking, TaskTemplate
+from app.db.models import ActivityLog, BillingAccount, Category, StudentTracking, TaskTemplate
 from app.models.schemas import (
     AdaptiveGenerateRequest,
     CategoryResponse,
@@ -35,6 +37,24 @@ router = APIRouter()
 
 TOKEN_COST_PDF = 5.0
 TOKEN_COST_ADAPTIVE = 1.0   # cheap — JSON only, no PDF compilation
+
+
+async def _log_activity(user_id: uuid.UUID, db: AsyncSession) -> None:
+    """Upsert daily heatmap counter for the given user."""
+    today = date.today()
+    stmt = (
+        pg_insert(ActivityLog)
+        .values(id=uuid.uuid4(), user_id=user_id, activity_date=today, count=1)
+        .on_conflict_do_update(
+            constraint="uq_activity_user_date",
+            set_={"count": ActivityLog.__table__.c.count + 1},
+        )
+    )
+    try:
+        await db.execute(stmt)
+        await db.commit()
+    except Exception:
+        pass
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -80,7 +100,9 @@ async def _generate_tasks(
         TaskTemplate.difficulty == payload.difficulty,
         TaskTemplate.is_active.is_(True),
     ]
-    if tid:
+    if payload.template_ids:
+        filters.append(TaskTemplate.id.in_(payload.template_ids))
+    elif tid:
         filters.append(TaskTemplate.id == tid)
 
     result = await db.execute(select(TaskTemplate).where(*filters))
@@ -273,6 +295,30 @@ async def generate_tasks_pdf(
     )
 
 
+# ── Route: practice by topic (student-accessible, 1 token) ───────────────────
+
+@router.post("/generate/practice", response_model=GenerateTaskResponse)
+async def generate_practice_tasks(
+    payload: GenerateTaskRequest,
+    locale: str = Depends(get_locale),
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate practice tasks for a specific category + difficulty.
+    Accessible to all authenticated roles (students use it for self-practice).
+    Costs 1 token (same as adaptive).
+    """
+    user_id = uuid.UUID(current_user.sub)
+    await _deduct_tokens(user_id, TOKEN_COST_ADAPTIVE, db)
+    generated = await _generate_tasks(payload, locale, db)
+    await _log_activity(user_id, db)
+    return GenerateTaskResponse(
+        pdf_url=None,
+        tasks=[GeneratedTask(**t) for t in generated[: payload.count]],
+    )
+
+
 # ── Route: adaptive practice (weakest categories, JSON) ───────────────────────
 
 @router.post("/generate/adaptive", response_model=GenerateTaskResponse)
@@ -371,6 +417,8 @@ async def generate_adaptive_tasks(
                 "Обратитесь к преподавателю или администратору."
             ),
         )
+
+    await _log_activity(user_id, db)
 
     return GenerateTaskResponse(
         pdf_url=None,

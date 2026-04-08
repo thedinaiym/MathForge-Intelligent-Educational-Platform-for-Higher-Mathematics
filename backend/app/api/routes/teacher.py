@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import asyncio
 
-from app.api.dependencies import get_locale, require_role
+from app.api.dependencies import get_current_user, get_locale, require_role
 from app.db.database import get_db
-from app.db.models import Category, TaskTemplate
+from app.db.models import Category, StudentTracking, TaskTemplate, User
 from app.models.schemas import TokenPayload
 from app.services.rag_parser import extract_templates_from_pdf_bytes
 from app.services.translator import auto_translate_content, auto_translate_dict
@@ -264,3 +264,107 @@ async def activate_template(
     await db.commit()
 
     return ActivateResponse(id=template.id, is_active=True)
+
+
+# ── Teacher class roster ──────────────────────────────────────────────────────
+
+class StudentMasteryEntry(BaseModel):
+    student_id: uuid.UUID
+    student_name: str
+    category_name: str
+    mastery_level: float
+    last_error_type: str | None
+
+
+class StudentSummary(BaseModel):
+    student_id: uuid.UUID
+    student_name: str
+    mastery: list[StudentMasteryEntry]
+
+
+@router.get("/my-students", response_model=list[StudentSummary])
+async def get_my_students(
+    locale: str = Depends(get_locale),
+    current_user: TokenPayload = Depends(require_role("teacher", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> list[StudentSummary]:
+    """
+    Return all students linked to this teacher, with per-category mastery data.
+    Students link themselves by entering the teacher's UUID in their profile.
+    """
+    teacher_id = uuid.UUID(current_user.sub)
+
+    # Fetch all students linked to this teacher
+    students_result = await db.execute(
+        select(User).where(User.teacher_id == teacher_id, User.role == "student")
+    )
+    students = students_result.scalars().all()
+
+    summaries: list[StudentSummary] = []
+    for student in students:
+        tracking_result = await db.execute(
+            select(StudentTracking, Category)
+            .join(Category, StudentTracking.category_id == Category.id)
+            .where(StudentTracking.user_id == student.id)
+            .order_by(StudentTracking.mastery_level.asc())
+        )
+        rows = tracking_result.all()
+
+        mastery = [
+            StudentMasteryEntry(
+                student_id=student.id,
+                student_name=student.name,
+                category_name=category.get_name(locale),
+                mastery_level=round(min(tracking.mastery_level, 100.0), 1),
+                last_error_type=tracking.last_error_type,
+            )
+            for tracking, category in rows
+        ]
+
+        summaries.append(StudentSummary(
+            student_id=student.id,
+            student_name=student.name,
+            mastery=mastery,
+        ))
+
+    return summaries
+
+
+class JoinClassRequest(BaseModel):
+    teacher_id: uuid.UUID
+
+
+@router.post("/join-class", status_code=200)
+async def join_class(
+    payload: JoinClassRequest,
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Link a student to a teacher by the teacher's UUID.
+    Students call this to join a class. Pass teacher_id=null to leave.
+    """
+    student_id = uuid.UUID(current_user.sub)
+
+    # Verify teacher exists and has role teacher/admin
+    teacher_result = await db.execute(
+        select(User).where(User.id == payload.teacher_id)
+    )
+    teacher = teacher_result.scalar_one_or_none()
+
+    if teacher is None or teacher.role not in ("teacher", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Teacher not found. Check the teacher ID.",
+        )
+
+    # Link the student
+    student_result = await db.execute(select(User).where(User.id == student_id))
+    student = student_result.scalar_one_or_none()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    student.teacher_id = payload.teacher_id
+    await db.commit()
+
+    return {"teacher_name": teacher.name, "teacher_id": str(teacher.id)}

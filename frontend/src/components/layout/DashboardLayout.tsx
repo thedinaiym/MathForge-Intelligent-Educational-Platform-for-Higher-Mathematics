@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { useBalance } from '../../hooks/useBalance'
+import AvatarTeacherWidget from '../avatar/AvatarTeacherWidget'
 
 export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -58,6 +59,9 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* ── AI Avatar Tutor — floating bottom-right ── */}
+      <AvatarTeacherWidget />
     </div>
   )
 }

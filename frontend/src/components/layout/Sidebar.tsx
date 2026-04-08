@@ -4,6 +4,7 @@ import {
   User,
   Coins,
   BookOpen,
+  Dumbbell,
   GraduationCap,
   LayoutDashboard,
   Library,
@@ -105,6 +106,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <>
             <NavLink to="/app/student" end className={navLinkClass} onClick={onClose}>
               <GraduationCap size={18} /> {t('nav.student')}
+            </NavLink>
+            <NavLink to="/app/student/practice" className={navLinkClass} onClick={onClose}>
+              <Dumbbell size={18} /> {t('nav.practice')}
             </NavLink>
             <NavLink to="/app/student/homework" className={navLinkClass} onClick={onClose}>
               <BookCheck size={18} /> {t('nav.homework')}

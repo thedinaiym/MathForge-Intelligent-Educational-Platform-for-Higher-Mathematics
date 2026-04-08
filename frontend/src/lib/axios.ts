@@ -27,7 +27,8 @@ const api = axios.create({
 
 api.interceptors.request.use(async (config) => {
   // i18n locale → Accept-Language (backend resolves JSONB translations from this)
-  config.headers['Accept-Language'] = i18n.language || 'ru'
+  // resolvedLanguage normalises "ru-RU" → "ru" etc.
+  config.headers['Accept-Language'] = i18n.resolvedLanguage ?? i18n.language ?? 'ru'
 
   // Supabase session is cached in memory; getSession() is non-blocking after init
   const { data: { session } } = await supabase.auth.getSession()

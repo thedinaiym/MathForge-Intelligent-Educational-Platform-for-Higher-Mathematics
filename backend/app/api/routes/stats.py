@@ -1,12 +1,8 @@
 """
 Study statistics route.
 
-GET /api/study/stats
-    Returns heatmap_data (last 365 days of activity) and mastery_data
-    (per-category mastery percentages from student_tracking) for the
-    authenticated user.
-
-Both datasets are used by the unified Dashboard component.
+GET  /api/study/stats  — heatmap + mastery data for the authenticated user
+POST /api/study/ping   — record a visit (counts toward heatmap, no token cost)
 """
 from __future__ import annotations
 
@@ -15,6 +11,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_locale
@@ -81,3 +78,30 @@ async def get_stats(
         mastery_data=mastery_data,
         total_analyses=total_analyses,
     )
+
+
+@router.post("/ping", status_code=204)
+async def ping_activity(
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Record a page visit in the activity heatmap.
+    Called by the Dashboard on every mount — no token cost.
+    Uses ON CONFLICT DO UPDATE so repeated pings the same day only increment once.
+    """
+    user_id = uuid.UUID(current_user.sub)
+    today = date.today()
+    try:
+        stmt = (
+            pg_insert(ActivityLog)
+            .values(id=uuid.uuid4(), user_id=user_id, activity_date=today, count=1)
+            .on_conflict_do_update(
+                constraint="uq_activity_user_date",
+                set_={"count": ActivityLog.__table__.c.count + 1},
+            )
+        )
+        await db.execute(stmt)
+        await db.commit()
+    except Exception:
+        pass  # never break the dashboard over a ping failure

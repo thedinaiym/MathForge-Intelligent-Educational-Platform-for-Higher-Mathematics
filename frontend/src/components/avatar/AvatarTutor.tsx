@@ -50,9 +50,21 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface WordBoundary {
+  word:        string
+  offset_ms:   number
+  duration_ms: number
+}
+
 export interface AvatarTutorProps {
   /** Blob URL (or any audio URL) pointing to the TTS audio to play and lip-sync. */
   audioUrl?: string | null
+  /**
+   * Optional word-boundary timing data from the TTS timing endpoint.
+   * When provided, lip-sync is driven by scheduled word events instead of
+   * real-time frequency analysis — more accurate and works even on slow devices.
+   */
+  wordBoundaries?: WordBoundary[]
   /** Path to the VRM model inside /public. Default: /tutor.vrm */
   modelPath?: string
   /** Canvas height. Default: 480 */
@@ -76,6 +88,7 @@ const CAM_TARGET   = new THREE.Vector3(0, 1.45, 0)
 
 export default function AvatarTutor({
   audioUrl,
+  wordBoundaries,
   modelPath = VRM_PATH,
   height = 480,
   onSpeechEnd,
@@ -121,6 +134,7 @@ export default function AvatarTutor({
           <VRMAvatar
             modelPath={modelPath}
             audioUrl={audioUrl ?? null}
+            wordBoundaries={wordBoundaries}
             onSpeechEnd={onSpeechEnd}
             onModelReady={onModelReady}
             onLoadError={setLoadError}
@@ -177,16 +191,18 @@ function LoadingSpinner() {
 // ── VRM Avatar — loads model, drives lip-sync and idle animations ─────────────
 
 interface VRMAvatarProps {
-  modelPath: string
-  audioUrl: string | null
-  onSpeechEnd?: () => void
-  onModelReady?: () => void
-  onLoadError?: (msg: string) => void
+  modelPath:       string
+  audioUrl:        string | null
+  wordBoundaries?: WordBoundary[]
+  onSpeechEnd?:    () => void
+  onModelReady?:   () => void
+  onLoadError?:    (msg: string) => void
 }
 
 function VRMAvatar({
   modelPath,
   audioUrl,
+  wordBoundaries,
   onSpeechEnd,
   onModelReady,
   onLoadError,
@@ -201,6 +217,11 @@ function VRMAvatar({
   const sourceRef     = useRef<AudioBufferSourceNode | null>(null)
   const freqDataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const isSpeakingRef = useRef(false)
+
+  // ── Timing-based lip-sync: scheduled timeouts from word boundaries ─────────
+  // When wordBoundaries are provided we use these instead of frequency analysis.
+  const timingTimeoutsRef  = useRef<ReturnType<typeof setTimeout>[]>([])
+  const timedMouthRef      = useRef(0)   // target set by word-boundary scheduler
 
   // ── Smoothed mouth value for lerping ─────────────────────────────────────
   const mouthValueRef = useRef(0)
@@ -314,10 +335,37 @@ function VRMAvatar({
     return () => { _stopSource(sourceRef) }
   }, [audioUrl, playAudio])
 
+  // ── Word-boundary timing scheduler ───────────────────────────────────────
+  // When wordBoundaries are provided, schedule mouth-open/close events per word.
+  // This replaces frequency-based lip-sync with precise per-word timing.
+  useEffect(() => {
+    // Cancel any previous scheduled events
+    timingTimeoutsRef.current.forEach(clearTimeout)
+    timingTimeoutsRef.current = []
+    timedMouthRef.current = 0
+
+    if (!wordBoundaries || wordBoundaries.length === 0) return
+
+    wordBoundaries.forEach(wb => {
+      // Open mouth at word start
+      const t1 = setTimeout(() => { timedMouthRef.current = 0.75 }, wb.offset_ms)
+      // Close mouth at word end (with 80ms tail)
+      const tail = Math.max(wb.duration_ms - 80, 30)
+      const t2 = setTimeout(() => { timedMouthRef.current = 0    }, wb.offset_ms + tail)
+      timingTimeoutsRef.current.push(t1, t2)
+    })
+
+    return () => {
+      timingTimeoutsRef.current.forEach(clearTimeout)
+      timingTimeoutsRef.current = []
+    }
+  }, [wordBoundaries])
+
   // ── Cleanup AudioContext on unmount ───────────────────────────────────────
   useEffect(() => {
     return () => {
       audioCtxRef.current?.close()
+      timingTimeoutsRef.current.forEach(clearTimeout)
     }
   }, [])
 
@@ -328,14 +376,17 @@ function VRMAvatar({
 
     // ── 1. Lip-sync ────────────────────────────────────────────────────────
     let targetMouth = 0
-    if (isSpeakingRef.current && analyserRef.current && freqDataRef.current) {
-      analyserRef.current.getByteFrequencyData(freqDataRef.current)
-
+    if (timedMouthRef.current > 0) {
+      // ── Timing-based lip-sync (word boundaries) — preferred when available ──
+      targetMouth = timedMouthRef.current
+    } else if (isSpeakingRef.current && analyserRef.current && freqDataRef.current) {
+      // ── Frequency-analysis fallback (no word boundaries provided) ──────────
       // Average the speech-frequency bins (~300–3 500 Hz).
       // With fftSize=512 at 44 100 Hz sample rate:
       //   bin width = 44100 / 512 ≈ 86 Hz
       //   bin 4  ≈ 345 Hz  (lower speech)
       //   bin 40 ≈ 3 450 Hz (upper speech)
+      analyserRef.current.getByteFrequencyData(freqDataRef.current)
       const bins = freqDataRef.current.slice(4, 40)
       const avg  = bins.reduce((a, b) => a + b, 0) / bins.length
       targetMouth = Math.min((avg / 255) * 3.5, 1)   // 3.5× amplification

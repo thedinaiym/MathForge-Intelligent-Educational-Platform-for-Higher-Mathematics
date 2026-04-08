@@ -1,68 +1,139 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Coins, Zap, CheckCircle2 } from 'lucide-react'
-import api from '../../lib/axios'
+import { Coins, X, Zap, QrCode, Phone, CheckCircle2 } from 'lucide-react'
 import { useBalance } from '../../hooks/useBalance'
 import { useUIStore } from '../../store/uiStore'
-import Button from '../../components/ui/Button'
 
-interface PurchaseResponse {
-  token_balance: number
-  tokens_added: number
-  message: string
+interface Package {
+  id: string
+  tokens: number
+  price: number
+  currency: string
+  popular: boolean
 }
 
-const PACKAGES = [
-  {
-    id: 'pkg_100',
-    tokens: 100,
-    price: 250,
-    currency: 'сом',
-    popular: false,
-  },
-  {
-    id: 'pkg_200',
-    tokens: 200,
-    price: 400,
-    currency: 'сом',
-    popular: true,
-  },
-] as const
+const PACKAGES: Package[] = [
+  { id: 'pkg_100', tokens: 100, price: 250, currency: 'сом', popular: false },
+  { id: 'pkg_200', tokens: 200, price: 400, currency: 'сом', popular: true },
+]
+
+// ── Payment modal ─────────────────────────────────────────────────────────────
+
+function PaymentModal({
+  pkg,
+  onClose,
+}: {
+  pkg: Package
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+
+  const phone = '+996 500 633 297'
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(phone.replace(/\s/g, '')).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div>
+            <p className="font-bold text-slate-800">{t('billing.payTitle')}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {pkg.tokens} {t('billing.tokens')} — {pkg.price} {pkg.currency}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* QR code */}
+        <div className="px-5 pt-5 pb-3 flex flex-col items-center gap-3">
+          <div className="p-2 border-2 border-amber-200 rounded-2xl bg-amber-50">
+            <img
+              src="/mbank-qr.png"
+              alt="M-Bank QR"
+              className="w-52 h-52 object-contain rounded-xl"
+              onError={(e) => {
+                // fallback if image not placed yet
+                const el = e.currentTarget
+                el.style.display = 'none'
+                el.nextElementSibling?.classList.remove('hidden')
+              }}
+            />
+            <div className="hidden w-52 h-52 flex items-center justify-center text-slate-300 flex-col gap-2">
+              <QrCode size={48} />
+              <span className="text-xs">mbank-qr.png</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500 text-center leading-relaxed">
+            {t('billing.payInstructions')}
+          </p>
+        </div>
+
+        {/* Phone */}
+        <div className="px-5 pb-2">
+          <button
+            onClick={handleCopy}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3
+                       bg-slate-50 border border-slate-200 rounded-xl hover:bg-amber-50
+                       hover:border-amber-300 transition-all text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Phone size={15} className="text-slate-400" />
+              <span className="font-mono font-medium text-slate-700">{phone}</span>
+            </div>
+            {copied
+              ? <CheckCircle2 size={15} className="text-green-500" />
+              : <span className="text-xs text-slate-400">{t('billing.tapToCopy')}</span>
+            }
+          </button>
+        </div>
+
+        {/* Note */}
+        <div className="px-5 pb-5">
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-relaxed text-center">
+            {t('billing.payNote')}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
   const { t } = useTranslation()
   const { isLoading, isError } = useBalance()
-  const { tokenBalance, setTokenBalance } = useUIStore()
-  const queryClient = useQueryClient()
-  const [purchasedPkg, setPurchasedPkg] = useState<string | null>(null)
-
-  const purchaseMutation = useMutation<PurchaseResponse, Error, string>({
-    mutationFn: async (packageId: string) => {
-      const { data } = await api.post<PurchaseResponse>('/billing/purchase', {
-        package_id: packageId,
-      })
-      return data
-    },
-    onSuccess: (data, packageId) => {
-      setTokenBalance(data.token_balance)
-      queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
-      setPurchasedPkg(packageId)
-      setTimeout(() => setPurchasedPkg(null), 3000)
-    },
-  })
+  const { tokenBalance } = useUIStore()
+  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
 
   return (
     <div className="max-w-xl">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">{t('billing.title')}</h1>
 
-      {/* Balance card */}
       {isLoading ? (
         <p className="text-slate-400">{t('common.loading')}</p>
       ) : isError ? (
         <p className="text-red-500">{t('common.error')}</p>
       ) : (
         <>
+          {/* Balance card */}
           <div className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm mb-6 flex items-center gap-4">
             <div className="p-3 bg-amber-100 rounded-xl">
               <Coins className="text-amber-500" size={26} />
@@ -100,60 +171,48 @@ export default function BillingPage() {
           {/* Purchase packages */}
           <p className="text-sm font-semibold text-slate-700 mb-3">{t('billing.topUp')}</p>
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {PACKAGES.map((pkg) => {
-              const isPurchased = purchasedPkg === pkg.id
-              const isPending = purchaseMutation.isPending && purchaseMutation.variables === pkg.id
+            {PACKAGES.map((pkg) => (
+              <div
+                key={pkg.id}
+                className={`relative bg-white rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${
+                  pkg.popular
+                    ? 'border-amber-400 shadow-md'
+                    : 'border-slate-200 hover:border-amber-300'
+                }`}
+              >
+                {pkg.popular && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                    {t('billing.popular')}
+                  </span>
+                )}
 
-              return (
-                <div
-                  key={pkg.id}
-                  className={`relative bg-white rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${
-                    pkg.popular
-                      ? 'border-amber-400 shadow-md'
-                      : 'border-slate-200 hover:border-amber-300'
-                  }`}
-                >
-                  {pkg.popular && (
-                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                      {t('billing.popular')}
-                    </span>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <Zap size={16} className="text-amber-500" />
-                    <span className="font-bold text-slate-800 text-lg">{pkg.tokens}</span>
-                    <span className="text-slate-400 text-sm">{t('billing.tokens')}</span>
-                  </div>
-
-                  <p className="text-2xl font-bold text-slate-800">
-                    {pkg.price}{' '}
-                    <span className="text-sm font-normal text-slate-500">{pkg.currency}</span>
-                  </p>
-
-                  <Button
-                    size="sm"
-                    onClick={() => purchaseMutation.mutate(pkg.id)}
-                    loading={isPending}
-                    disabled={purchaseMutation.isPending}
-                    className="w-full justify-center"
-                  >
-                    {isPurchased ? (
-                      <span className="flex items-center gap-1.5 text-green-600">
-                        <CheckCircle2 size={14} /> {t('billing.purchased')}
-                      </span>
-                    ) : (
-                      t('billing.buy')
-                    )}
-                  </Button>
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className="text-amber-500" />
+                  <span className="font-bold text-slate-800 text-lg">{pkg.tokens}</span>
+                  <span className="text-slate-400 text-sm">{t('billing.tokens')}</span>
                 </div>
-              )
-            })}
-          </div>
 
-          {purchaseMutation.isError && (
-            <p className="text-sm text-red-500 mt-2">{t('common.error')}</p>
-          )}
+                <p className="text-2xl font-bold text-slate-800">
+                  {pkg.price}{' '}
+                  <span className="text-sm font-normal text-slate-500">{pkg.currency}</span>
+                </p>
+
+                <button
+                  onClick={() => setSelectedPkg(pkg)}
+                  className="inline-flex items-center gap-2 font-medium rounded-lg transition-colors
+                             bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm w-full justify-center"
+                >
+                  {t('billing.buy')}
+                </button>
+              </div>
+            ))}
+          </div>
         </>
+      )}
+
+      {/* M-Bank payment modal */}
+      {selectedPkg && (
+        <PaymentModal pkg={selectedPkg} onClose={() => setSelectedPkg(null)} />
       )}
     </div>
   )
