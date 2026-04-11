@@ -80,11 +80,11 @@ async def get_stats(
     )
 
 
-@router.post("/ping", status_code=204)
+@router.post("/ping", status_code=200)
 async def ping_activity(
     current_user: TokenPayload = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+) -> dict:
     """
     Record a page visit in the activity heatmap.
     Called by the Dashboard on every mount — no token cost.
@@ -105,3 +105,4 @@ async def ping_activity(
         await db.commit()
     except Exception:
         pass  # never break the dashboard over a ping failure
+    return {}

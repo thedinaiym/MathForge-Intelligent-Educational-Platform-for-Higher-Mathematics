@@ -312,7 +312,7 @@ export default function TeacherGenerator() {
           <DifficultyPicker
             label={t('teacher.difficulty')}
             value={form.difficulty}
-            onChange={(d) => { set('difficulty', d); set('template_id', '') }}
+            onChange={(d) => { set('difficulty', d); set('template_ids', []) }}
           />
         </div>
 
@@ -363,7 +363,6 @@ export default function TeacherGenerator() {
               {/* Checkbox list */}
               <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
                 {topicOptions.map((tmpl) => {
-                  const checked = form.template_ids.length === 0 || form.template_ids.includes(tmpl.id)
                   const explicitly = form.template_ids.includes(tmpl.id)
                   return (
                     <label
