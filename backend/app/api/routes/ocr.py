@@ -26,7 +26,9 @@ import json
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, List, UploadFile, status
+from typing import List
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from groq import AsyncGroq
 from pydantic import BaseModel
 from sqlalchemy import func, select
