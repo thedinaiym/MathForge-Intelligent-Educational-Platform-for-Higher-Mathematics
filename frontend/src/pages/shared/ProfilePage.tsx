@@ -17,9 +17,10 @@ interface ProfileFormData {
   locale: UserLocale
 }
 
+// 'admin' is kept in the backend but hidden from the UI.
 const schema = yup.object({
   name: yup.string().min(2).required(),
-  role: yup.mixed<UserRole>().oneOf(['student', 'teacher', 'admin']).required(),
+  role: yup.mixed<UserRole>().oneOf(['student', 'teacher']).required(),
   locale: yup.mixed<UserLocale>().oneOf(['en', 'ru', 'kg']).required(),
 })
 
@@ -186,6 +187,11 @@ export default function ProfilePage() {
   const { t } = useTranslation()
   const { user, setUser } = useAuthStore()
 
+  // Bug 1 fix: locale must reflect the ACTIVE i18n language, not the DB value.
+  // The DB locale and the sidebar language picker can diverge (e.g., user switched
+  // language in the sidebar but hasn't saved the profile yet).
+  const activeLocale = (i18n.resolvedLanguage ?? i18n.language ?? user?.locale ?? 'ru') as UserLocale
+
   const {
     register,
     handleSubmit,
@@ -194,21 +200,23 @@ export default function ProfilePage() {
   } = useForm<ProfileFormData>({
     resolver: yupResolver(schema),
     defaultValues: {
-      name: user?.name ?? '',
-      role: user?.role ?? 'student',
-      locale: user?.locale ?? 'ru',
+      name:   user?.name   ?? '',
+      role:   (user?.role === 'admin' ? 'teacher' : user?.role) ?? 'student',
+      locale: activeLocale,
     },
   })
 
+  // Re-sync the form whenever the user record or the active i18n language changes
   useEffect(() => {
     if (user) {
+      const lang = (i18n.resolvedLanguage ?? i18n.language ?? user.locale ?? 'ru') as UserLocale
       reset({
-        name: user.name ?? '',
-        role: user.role ?? 'student',
-        locale: user.locale ?? 'ru',
+        name:   user.name ?? '',
+        role:   (user.role === 'admin' ? 'teacher' : user.role) ?? 'student',
+        locale: lang,
       })
     }
-  }, [user, reset])
+  }, [user, i18n.language, i18n.resolvedLanguage, reset])
 
   const mutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
@@ -222,7 +230,7 @@ export default function ProfilePage() {
     },
   })
 
-  const isTeacher = user?.role === 'teacher' || user?.role === 'admin'
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin'  // admin keeps teacher panel
   const isStudent = user?.role === 'student'
 
   return (
@@ -250,7 +258,6 @@ export default function ProfilePage() {
           >
             <option value="student">{t('profile.role_student')}</option>
             <option value="teacher">{t('profile.role_teacher')}</option>
-            <option value="admin">Admin</option>
           </select>
           {errors.role && <p className="text-sm text-red-500">{errors.role.message}</p>}
         </div>

@@ -30,7 +30,7 @@ import {
   X,
 } from 'lucide-react'
 import api from '../../lib/axios'
-import { useCategories, type Category } from '../../hooks/useCategories'
+import { useCategories, isOrtCategory, type Category } from '../../hooks/useCategories'
 import GeoGebraWidget, { type GeoGebraApp } from '../../components/geogebra/GeoGebraWidget'
 import i18n from '../../i18n'
 
@@ -272,9 +272,7 @@ export default function PracticePage() {
 
   // ── Categories ─────────────────────────────────────────────────────────────
   const { data: categories = [], isLoading: loadingCats } = useCategories()
-  const nonOrtCats = categories.filter(
-    (c) => !c.name.toLowerCase().includes('ort') && !c.name.toLowerCase().includes('орт'),
-  )
+  const nonOrtCats = categories.filter(c => !isOrtCategory(c))
 
   // ── Timer ──────────────────────────────────────────────────────────────────
   const timerDisplay = useTimer(phase === 'session')

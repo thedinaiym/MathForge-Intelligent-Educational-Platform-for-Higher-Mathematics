@@ -8,7 +8,6 @@ import {
   GraduationCap,
   LayoutDashboard,
   Library,
-  Database,
   LogOut,
   Globe,
   BookMarked,
@@ -125,7 +124,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </>
         )}
 
-        {(user?.role === 'teacher' || user?.role === 'admin') && (
+        {user?.role === 'teacher' && (
           <>
             <NavLink to="/app/teacher" className={navLinkClass} onClick={onClose}>
               <BookOpen size={18} /> {t('nav.teacher')}
@@ -142,11 +141,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </>
         )}
 
-        {(user?.role === 'admin' || user?.role === 'teacher') && (
-          <NavLink to="/app/admin" className={navLinkClass} onClick={onClose}>
-            <Database size={18} /> {t('nav.admin')}
-          </NavLink>
-        )}
+        {/* Admin dataset — hidden from UI; admins in DB still access via direct URL */}
       </nav>
 
       {/* ── Language switcher ─────────────────────────────────────────────── */}

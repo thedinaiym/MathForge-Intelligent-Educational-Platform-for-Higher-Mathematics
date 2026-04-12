@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, FileDown, RefreshCw } from 'lucide-react'
 import api from '../../lib/axios'
-import { useCategories } from '../../hooks/useCategories'
+import { useCategories, isOrtCategory } from '../../hooks/useCategories'
 import { useBalance } from '../../hooks/useBalance'
 import { useUIStore } from '../../store/uiStore'
 import Button from '../../components/ui/Button'
@@ -96,7 +96,8 @@ export default function StudentPracticePDF() {
     })
 
   // ── Data fetching ──────────────────────────────────────────────────────────
-  const { data: categories = [], isLoading: loadingCats } = useCategories()
+  const { data: allCategories = [], isLoading: loadingCats } = useCategories()
+  const categories = allCategories.filter(c => !isOrtCategory(c))
 
   const { data: templates = [], isLoading: loadingTemplates } = useQuery<TemplateInfo[]>({
     queryKey: ['templates', form.category_id],

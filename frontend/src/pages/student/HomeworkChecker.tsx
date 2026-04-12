@@ -168,15 +168,23 @@ export default function HomeworkChecker() {
       const form = new FormData()
       form.append('problem_text', problemText.trim())
       imageEntries.forEach((entry) => form.append('files', entry.file))
+      // Do NOT set Content-Type manually — axios+FormData adds the correct
+      // multipart/form-data boundary automatically. Overriding it strips the
+      // boundary and breaks FastAPI's multipart parser (causes silent 422).
+      // Use a 120 s timeout: Vision OCR × N images + LLM can take 60–90 s.
       const { data } = await api.post<HomeworkCheckResponse>(
         '/study/check-homework',
         form,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        { timeout: 120_000 },
       )
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
+    },
+    onError: () => {
+      // React Query already sets isError=true; nothing extra needed, but this
+      // handler ensures any pending phase-label cycling stops immediately.
     },
   })
 
@@ -191,7 +199,12 @@ export default function HomeworkChecker() {
 
   const errorMsg = (() => {
     if (!mutation.error) return ''
-    const detail = (mutation.error as any)?.response?.data?.detail
+    const err = mutation.error as any
+    // Axios timeout → code is 'ECONNABORTED'
+    if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+      return t('homework.errorTimeout')
+    }
+    const detail = err?.response?.data?.detail
     return typeof detail === 'string' ? detail : t('common.error')
   })()
 

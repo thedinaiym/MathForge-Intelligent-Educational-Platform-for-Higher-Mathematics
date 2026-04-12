@@ -22,6 +22,7 @@ Design note:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import date
@@ -549,12 +550,25 @@ async def check_homework(
     await db.commit()
 
     # ── C. Vision OCR — extract steps from every image and merge ─────────
+    # Each Groq vision call is capped at 60 s. Any network/API/parse error
+    # is caught broadly so a single bad image never hangs the whole request.
     all_steps: list[str] = []
     for raw, mime in validated:
         try:
-            page_steps = await VisionAgent.extract_steps(raw, mime_type=mime)
+            page_steps = await asyncio.wait_for(
+                VisionAgent.extract_steps(raw, mime_type=mime),
+                timeout=60.0,
+            )
             all_steps.extend(page_steps)
-        except ValueError as exc:
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=(
+                    "Vision OCR timed out while processing one of the images. "
+                    "Try uploading a smaller or clearer photo."
+                ),
+            )
+        except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=(
@@ -571,9 +585,22 @@ async def check_homework(
             detail="No solution steps found in the uploaded images. Please upload clearer photos.",
         )
 
-    # ── D. LLM Tutor analysis ─────────────────────────────────────────────
+    # ── D. LLM Tutor analysis — capped at 45 s, soft-fails gracefully ────
     try:
-        analysis = await _call_tutor_llm(steps, locale, problem_text=problem_text)
+        analysis = await asyncio.wait_for(
+            _call_tutor_llm(steps, locale, problem_text=problem_text),
+            timeout=45.0,
+        )
+    except asyncio.TimeoutError:
+        analysis = {
+            "is_correct": False,
+            "error_step_index": None,
+            "feedback": (
+                "AI tutor timed out. Your steps were extracted successfully "
+                "but could not be analysed — please try again."
+            ),
+            "weak_topic": None,
+        }
     except Exception:
         analysis = {
             "is_correct": False,

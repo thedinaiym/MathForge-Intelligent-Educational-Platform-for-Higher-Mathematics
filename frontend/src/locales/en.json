@@ -442,6 +442,7 @@
   "homework": {
     "title": "Homework Checker",
     "subtitle": "Describe the problem, then upload photos of your solution. AI will pinpoint the exact error and explain the concept.",
+    "errorTimeout": "The request timed out — the AI pipeline can take up to 2 minutes. Please try again.",
     "conditionLabel": "Problem Condition",
     "conditionHint": "recommended for best results",
     "conditionPlaceholder": "Paste or type the problem statement here, e.g. «Find the roots of x² − 5x + 6 = 0»",

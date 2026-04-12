@@ -374,9 +374,15 @@ export default function StudentLessons() {
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null)
   const [activeClassroom, setActiveClassroom] = useState('')
 
-  const { data: lessons = [], isLoading, isError } = useQuery({
+  const { data: lessons = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['lessons', 'student'],
     queryFn: fetchStudentLessons,
+    // Never auto-retry — a single 15 s axios timeout is enough feedback.
+    // With retry:1 (global default) the spinner would show for 30+ seconds
+    // before isError settles, making the page appear to hang indefinitely.
+    retry: false,
+    // Always fetch fresh data when the student navigates to this page.
+    staleTime: 0,
   })
 
   // Unique classroom names for filter tabs
@@ -407,8 +413,14 @@ export default function StudentLessons() {
 
       {/* Error */}
       {isError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-          {t('common.error')}
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-center justify-between gap-4">
+          <span>{t('common.error')}</span>
+          <button
+            onClick={() => refetch()}
+            className="text-xs font-semibold underline underline-offset-2 hover:text-red-800 transition-colors flex-shrink-0"
+          >
+            {t('dashboard.retry')}
+          </button>
         </div>
       )}
 
