@@ -202,7 +202,7 @@ async def upload_pdf_and_extract_templates(
                 "constraints": tpl.get("constraints", []),
                 "texts": texts_tr,
             },
-            is_active=False,   # Admin must approve before students see it
+            is_active=True,   # Teachers can upload and use immediately
         )
         db.add(record)
 

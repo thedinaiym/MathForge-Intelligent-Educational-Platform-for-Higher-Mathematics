@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag, avatar
+from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag, avatar, classes, lessons, tutor
 from app.db.database import Base, engine, AsyncSessionLocal
 from app.db.seed import seed_database
 from app.api import router_admin
@@ -95,6 +95,8 @@ async def startup():
                 "ALTER TABLE users "
                 "ADD COLUMN IF NOT EXISTS teacher_id UUID REFERENCES users(id) ON DELETE SET NULL"
             ))
+            # Phase 22: video_lessons is created by create_all above (new table).
+            # No additive column migrations needed for new tables.
         print("✅ DB tables verified/created.")
     except Exception as exc:
         print(f"⚠️  DB connection failed: {exc}")
@@ -136,6 +138,9 @@ app.include_router(teacher.router, prefix="/api/teachers", tags=["teachers"])
 app.include_router(ort.router, prefix="/api/ort", tags=["ort"])
 app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
 app.include_router(avatar.router, prefix="/api/avatar", tags=["avatar"])
+app.include_router(classes.router, prefix="/api/classes", tags=["classes"])
+app.include_router(lessons.router, prefix="/api/lessons", tags=["lessons"])
+app.include_router(tutor.router,   prefix="/api/tutor",   tags=["tutor"])
 
 
 @app.get("/")

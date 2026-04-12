@@ -13,6 +13,8 @@ import {
   Globe,
   BookMarked,
   BookCheck,
+  Users,
+  Video,
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -113,6 +115,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <NavLink to="/app/student/homework" className={navLinkClass} onClick={onClose}>
               <BookCheck size={18} /> {t('nav.homework')}
             </NavLink>
+            <NavLink to="/app/student/lessons" className={navLinkClass} onClick={onClose}>
+              <Video size={18} /> {t('nav.lessons')}
+            </NavLink>
           </>
         )}
 
@@ -123,6 +128,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </NavLink>
             <NavLink to="/app/teacher/library" className={navLinkClass} onClick={onClose}>
               <Library size={18} /> {t('nav.library')}
+            </NavLink>
+            <NavLink to="/app/teacher/classes" className={navLinkClass} onClick={onClose}>
+              <Users size={18} /> {t('nav.classes')}
+            </NavLink>
+            <NavLink to="/app/teacher/lessons" className={navLinkClass} onClick={onClose}>
+              <Video size={18} /> {t('nav.lessons')}
             </NavLink>
           </>
         )}

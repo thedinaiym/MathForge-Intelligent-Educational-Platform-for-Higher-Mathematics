@@ -26,9 +26,13 @@ import {
   Trophy,
   XCircle,
   Zap,
+  Calculator,
+  X,
 } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories, type Category } from '../../hooks/useCategories'
+import GeoGebraWidget, { type GeoGebraApp } from '../../components/geogebra/GeoGebraWidget'
+import i18n from '../../i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,6 +105,138 @@ function MasteryRing({ pct }: { pct: number }) {
         {Math.round(pct)}%
       </text>
     </svg>
+  )
+}
+
+// ── GeoGebra locale map ───────────────────────────────────────────────────────
+
+const GGB_LOCALE_MAP: Record<string, string> = {
+  ru: 'ru',
+  en: 'en',
+  kg: 'ky',  // Kyrgyz BCP-47 code GeoGebra understands
+}
+
+// ── App selector tab ──────────────────────────────────────────────────────────
+
+const GGB_APPS: { id: GeoGebraApp; label: string; emoji: string }[] = [
+  { id: 'graphing',  label: 'Graphing',  emoji: '📈' },
+  { id: 'geometry',  label: 'Geometry',  emoji: '📐' },
+  { id: '3d',        label: '3D',        emoji: '🧊' },
+  { id: 'cas',       label: 'CAS',       emoji: '🔣' },
+  { id: 'suite',     label: 'Suite',     emoji: '🎛️' },
+]
+
+// ── Math Tools floating button + modal ────────────────────────────────────────
+
+function MathToolsButton() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [selectedApp, setSelectedApp] = useState<GeoGebraApp>('graphing')
+  // Re-mount GeoGebra when switching apps by changing a key
+  const [mountKey, setMountKey] = useState(0)
+
+  const locale = GGB_LOCALE_MAP[i18n.resolvedLanguage ?? i18n.language ?? 'en'] ?? 'en'
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  const handleSelectApp = (app: GeoGebraApp) => {
+    setSelectedApp(app)
+    setMountKey((k) => k + 1)  // force remount → fresh applet
+  }
+
+  return (
+    <>
+      {/* ── Floating trigger button (bottom-left, avoids avatar on bottom-right) */}
+      <button
+        onClick={() => setOpen(true)}
+        title={t('geogebra.openTool')}
+        className="fixed bottom-5 left-5 z-40 flex items-center gap-2 px-4 py-2.5
+          rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg
+          text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
+      >
+        <Calculator size={16} />
+        <span className="hidden sm:inline">{t('geogebra.mathTools')}</span>
+      </button>
+
+      {/* ── Modal ──────────────────────────────────────────────────────────── */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/50"
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            style={{ width: '100%', maxWidth: 860, height: 'min(90vh, 640px)' }}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Calculator size={16} className="text-indigo-600" />
+                <span className="font-semibold text-slate-800 text-sm">{t('geogebra.title')}</span>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* App tabs */}
+            <div className="flex gap-1 px-3 py-2 border-b border-slate-100 flex-shrink-0 overflow-x-auto">
+              {GGB_APPS.map((app) => (
+                <button
+                  key={app.id}
+                  onClick={() => handleSelectApp(app.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                    whitespace-nowrap transition-colors ${
+                    selectedApp === app.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{app.emoji}</span>
+                  {app.label}
+                </button>
+              ))}
+
+              <div className="ml-auto flex-shrink-0 flex items-center">
+                <span className="text-[10px] text-slate-300 italic pr-1">
+                  {t('geogebra.poweredBy')}
+                </span>
+              </div>
+            </div>
+
+            {/* GeoGebra canvas — flex-1 fills remaining height */}
+            <div className="flex-1 min-h-0 relative">
+              <GeoGebraWidget
+                key={`${selectedApp}-${mountKey}`}
+                appName={selectedApp}
+                height={0}  // 0 = let parent flex-1 control height
+                showAlgebraInput={selectedApp === 'graphing' || selectedApp === 'cas' || selectedApp === 'suite'}
+                showToolBar={true}
+                showMenuBar={false}
+                showFullscreenButton={true}
+                language={locale}
+              />
+            </div>
+
+            {/* Tip bar */}
+            <div className="px-4 py-2 border-t border-slate-50 bg-slate-50/70 flex-shrink-0">
+              <p className="text-[11px] text-slate-400">
+                {t('geogebra.tip')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -219,6 +355,7 @@ export default function PracticePage() {
   if (phase === 'setup') {
     return (
       <div className="max-w-xl">
+        <MathToolsButton />
         <h1 className="text-2xl font-bold text-slate-800 mb-1">{t('practice.title')}</h1>
         <p className="text-sm text-slate-500 mb-6">{t('practice.subtitle')}</p>
 
@@ -352,6 +489,7 @@ export default function PracticePage() {
 
     return (
       <div className="max-w-xl">
+        <MathToolsButton />
         {/* Anti-cheat overlay */}
         {showOverlay && (
           <div className="fixed inset-0 z-50 bg-amber-500/95 flex flex-col items-center justify-center gap-5 text-white">
@@ -503,6 +641,7 @@ export default function PracticePage() {
 
   return (
     <div className="max-w-md mx-auto text-center py-10">
+      <MathToolsButton />
       <div className="w-20 h-20 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-5">
         <Trophy size={36} className="text-amber-500" />
       </div>

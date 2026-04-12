@@ -15,7 +15,9 @@
     "news": "News",
     "tagline": "Smart Math Platform",
     "homework": "Homework Checker",
-    "practice": "Practice"
+    "practice": "Practice",
+    "classes": "My Classes",
+    "lessons": "Video Lessons"
   },
   "auth": {
     "title": "Welcome to MathForge",
@@ -479,6 +481,75 @@
     "placeholder": "Ask a math question…",
     "thinking": "thinking…",
     "speaking": "speaking…",
-    "error": "Sorry, something went wrong. Please try again."
+    "error": "Sorry, something went wrong. Please try again.",
+    "voice": {
+      "textMode": "Text mode",
+      "voiceMode": "Voice mode",
+      "holdToTalk": "Hold to talk",
+      "releaseToSend": "Release to send…",
+      "listening": "Listening…",
+      "notSupported": "Voice not supported in this browser"
+    }
+  },
+  "geogebra": {
+    "mathTools": "Math Tools",
+    "openTool": "Open Math Tools (GeoGebra)",
+    "title": "GeoGebra Math Tools",
+    "poweredBy": "powered by GeoGebra",
+    "tip": "Tip: Switch between Graphing, Geometry, 3D, and CAS calculators using the tabs above. Press Esc to close."
+  },
+  "lessons": {
+    "title": "Video Lessons",
+    "subtitle": "Upload video lessons and assign them to your classrooms.",
+    "uploadNew": "Upload a new lesson",
+    "classroom": "Classroom",
+    "titleLabel": "Lesson title",
+    "titlePlaceholder": "e.g. Introduction to Derivatives",
+    "descLabel": "Description",
+    "descPlaceholder": "Brief overview of what this lesson covers…",
+    "optional": "optional",
+    "dropHint": "Drag & drop a video file here, or click to select",
+    "phaseUploading": "Uploading to storage…",
+    "phaseSaving": "Saving lesson…",
+    "uploading": "Uploading…",
+    "upload": "Upload lesson",
+    "uploadSuccess": "Lesson uploaded and saved successfully!",
+    "uploadError": "File rejected. Check format and size.",
+    "saveError": "Failed to save lesson metadata.",
+    "uploaded": "Uploaded lessons",
+    "emptyTeacher": "No lessons yet. Upload your first video above.",
+    "noClassroomsHint": "You have no classrooms yet. Create a classroom first, then upload lessons.",
+    "delete": "Delete",
+    "studentTitle": "My Lessons",
+    "studentSubtitle": "Videos shared by your teachers.",
+    "allClasses": "All classes",
+    "emptyStudent": "No video lessons available yet.",
+    "emptyStudentHint": "Ask your teacher to upload lessons for your classroom.",
+    "noLessonsInClass": "No lessons in this classroom yet."
+  },
+  "classes": {
+    "title": "My Classes",
+    "subtitle": "Create virtual classrooms and invite students with a join code.",
+    "newClass": "Create a new classroom",
+    "namePlaceholder": "e.g. Algebra 10A",
+    "create": "Create",
+    "codeHint": "After creating, share the join code with your students.",
+    "createdOn": "Created {{date}}",
+    "deleteClass": "Delete classroom",
+    "confirmDelete": "Delete this classroom?",
+    "yes": "Yes, delete",
+    "cancel": "Cancel",
+    "noStudentsYet": "No students have joined yet. Share the code!",
+    "empty": "No classrooms yet",
+    "emptyHint": "Create your first classroom above and share the join code.",
+    "joinButton": "Join a Class",
+    "joinTitle": "Join a Classroom",
+    "joinHint": "Enter the 6-character code provided by your teacher.",
+    "codePlaceholder": "e.g. X7K2AQ",
+    "join": "Join",
+    "joinedSuccess": "Joined "{{name}}" successfully!",
+    "myClasses": "My enrolled classes",
+    "notJoinedAny": "You have not joined any class yet.",
+    "teacher": "Teacher"
   }
 }

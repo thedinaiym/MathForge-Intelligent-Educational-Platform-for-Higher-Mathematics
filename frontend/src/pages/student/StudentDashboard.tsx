@@ -10,13 +10,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
-import { ArrowLeft, BookOpen, Brain, Calculator, ChevronRight, FileQuestion, RotateCcw } from 'lucide-react'
+import { ArrowLeft, BookOpen, Brain, Calculator, ChevronRight, FileQuestion, RotateCcw, GraduationCap } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories, type Category } from '../../hooks/useCategories'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMathStore } from '../../store/mathStore'
 import { InlineMath } from 'react-katex'
 import 'katex/dist/katex.min.css'
+import JoinClassModal from '../../components/classes/JoinClassModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -427,6 +428,7 @@ export default function StudentDashboard() {
   const { clearSteps, updateStep, setInputMode } = useMathStore()
 
   const [selected, setSelected] = useState<Category | null>(null)
+  const [showJoinModal, setShowJoinModal] = useState(false)
   const [ortPart, setOrtPart] = useState<OrtPart | null>(null)
   const [ortData, setOrtData] = useState<OrtResponse | null>(null)
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({})
@@ -500,6 +502,9 @@ export default function StudentDashboard() {
   return (
     <div className="max-w-2xl">
 
+      {/* Join Class modal */}
+      {showJoinModal && <JoinClassModal onClose={() => setShowJoinModal(false)} />}
+
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-6">
         {selected && (
@@ -510,7 +515,7 @@ export default function StudentDashboard() {
             <ArrowLeft size={16} />
           </button>
         )}
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-slate-800">
             {selected ? selected.name : t('student.dashboard.title')}
           </h1>
@@ -522,6 +527,17 @@ export default function StudentDashboard() {
               : t('student.dashboard.subtitle')}
           </p>
         </div>
+        {/* Join class button — only on initial screen */}
+        {!selected && (
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-200
+              bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors flex-shrink-0"
+          >
+            <GraduationCap size={14} />
+            {t('classes.joinButton')}
+          </button>
+        )}
       </div>
 
       {/* ── Category grid (initial screen) ──────────────────────────────────── */}

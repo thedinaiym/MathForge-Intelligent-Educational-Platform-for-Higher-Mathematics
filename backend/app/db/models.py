@@ -163,6 +163,84 @@ class StudentTracking(Base):
     category: Mapped["Category"] = relationship("Category", back_populates="tracking_records")
 
 
+class Classroom(Base):
+    """
+    A virtual classroom created by a teacher.
+    Students join via a short alphanumeric join_code.
+    """
+
+    __tablename__ = "classrooms"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    join_code: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    teacher: Mapped["User"] = relationship("User", foreign_keys=[teacher_id])
+    members: Mapped[list["ClassroomMember"]] = relationship(
+        "ClassroomMember", back_populates="classroom", cascade="all, delete-orphan"
+    )
+
+
+class ClassroomMember(Base):
+    """Join table linking students to classrooms."""
+
+    __tablename__ = "classroom_members"
+
+    classroom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("classrooms.id", ondelete="CASCADE"), primary_key=True
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    classroom: Mapped["Classroom"] = relationship("Classroom", back_populates="members")
+    student: Mapped["User"] = relationship("User", foreign_keys=[student_id])
+
+
+class VideoLesson(Base):
+    """
+    A video lesson uploaded by a teacher and assigned to a classroom.
+    The actual video file lives in Supabase Storage (bucket: video_lessons).
+    video_url is the public Supabase Storage URL returned after upload.
+    """
+
+    __tablename__ = "video_lessons"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    classroom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("classrooms.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    video_url: Mapped[str] = mapped_column(String, nullable=False)
+    duration_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    teacher: Mapped["User"] = relationship("User", foreign_keys=[teacher_id])
+    classroom: Mapped["Classroom"] = relationship("Classroom", foreign_keys=[classroom_id])
+
+
 class ActivityLog(Base):
     """
     Daily activity counter per user — drives the GitHub-style heatmap.

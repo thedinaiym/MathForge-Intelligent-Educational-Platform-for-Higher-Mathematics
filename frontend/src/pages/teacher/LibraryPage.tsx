@@ -12,7 +12,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDropzone } from 'react-dropzone'
 import { useMutation } from '@tanstack/react-query'
-import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers, Lock, Zap } from 'lucide-react'
+import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers, Lock } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
 import { useAuthStore } from '../../store/authStore'
@@ -250,14 +250,6 @@ function ParseBookTab() {
 
 function TemplateCard({ tpl, lang }: { tpl: ParsedTemplate; lang: string }) {
   const { t } = useTranslation()
-  const [activated, setActivated] = useState(false)
-
-  const activateMutation = useMutation<void, Error>({
-    mutationFn: async () => {
-      await api.patch(`/teachers/templates/${tpl.saved_id}/activate`)
-    },
-    onSuccess: () => setActivated(true),
-  })
 
   const questionText =
     tpl.texts?.[lang] || tpl.texts?.['en'] || tpl.texts?.['ru'] || ''
@@ -269,9 +261,14 @@ function TemplateCard({ tpl, lang }: { tpl: ParsedTemplate; lang: string }) {
     <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium text-slate-700 text-sm">{titleText}</p>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${DIFF_COLOUR[tpl.difficulty] ?? 'bg-slate-100 text-slate-600'}`}>
-          {tpl.difficulty}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${DIFF_COLOUR[tpl.difficulty] ?? 'bg-slate-100 text-slate-600'}`}>
+            {tpl.difficulty}
+          </span>
+          <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+            <CheckCircle size={13} /> {t('library.activated', 'Active')}
+          </span>
+        </div>
       </div>
 
       {questionText && (
@@ -284,27 +281,7 @@ function TemplateCard({ tpl, lang }: { tpl: ParsedTemplate; lang: string }) {
         {tpl.sympy_expr}
       </code>
 
-      <div className="flex items-center justify-between pt-1">
-        <p className="text-xs text-slate-300 font-mono truncate max-w-[60%]">{tpl.saved_id}</p>
-        {activated ? (
-          <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-            <CheckCircle size={13} /> {t('library.activated', 'Activated')}
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => activateMutation.mutate()}
-            disabled={activateMutation.isPending}
-            className="flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-lg
-              bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
-          >
-            <Zap size={12} />
-            {activateMutation.isPending
-              ? '…'
-              : t('library.activate', 'Activate')}
-          </button>
-        )}
-      </div>
+      <p className="text-xs text-slate-300 font-mono truncate">{tpl.saved_id}</p>
     </div>
   )
 }

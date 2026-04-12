@@ -2,8 +2,9 @@
  * AvatarTeacherWidget
  *
  * Floating bottom-right panel with the AI avatar tutor (Aida).
- * Click the avatar button to expand; type a math question; Aida answers
- * in the current app language via Groq Llama-3 + Edge TTS voice.
+ * Supports two input modes:
+ *   • Text mode  — type a question, press Enter or Send
+ *   • Voice mode — hold the mic button, speak, release to send
  *
  * Languages: en / ru / kg — auto-detected from i18next.
  * Voice: female (Nazgul / Svetlana / Jenny).
@@ -15,8 +16,9 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bot, ChevronDown, Loader2, Mic, Send, X } from 'lucide-react'
+import { Bot, ChevronDown, Keyboard, Loader2, Mic, Send, X } from 'lucide-react'
 import AvatarTutor from './AvatarTutor'
+import VoiceTutorSession from './VoiceTutorSession'
 import { useTTSSpeech, type TTSLanguage } from './useTTSSpeech'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -29,7 +31,8 @@ const LANG_MAP: Record<string, TTSLanguage> = {
   ky: 'kg',
 }
 
-type Phase = 'idle' | 'thinking' | 'speaking' | 'error'
+type Phase   = 'idle' | 'thinking' | 'speaking' | 'error'
+type UIMode  = 'text' | 'voice'
 
 interface Message {
   role:    'user' | 'aida'
@@ -41,12 +44,13 @@ export default function AvatarTeacherWidget() {
   const lang: TTSLanguage = LANG_MAP[i18n.language] ?? 'ru'
 
   const [open,     setOpen]     = useState(false)
+  const [mode,     setMode]     = useState<UIMode>('text')
   const [phase,    setPhase]    = useState<Phase>('idle')
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
 
   const { audioUrl, wordBoundaries, isLoading, speakTimed, clear } = useTTSSpeech()
-  const inputRef    = useRef<HTMLInputElement>(null)
+  const inputRef      = useRef<HTMLInputElement>(null)
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll chat on new message
@@ -54,10 +58,10 @@ export default function AvatarTeacherWidget() {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Focus input when panel opens
+  // Focus input when panel opens in text mode
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 200)
-  }, [open])
+    if (open && mode === 'text') setTimeout(() => inputRef.current?.focus(), 200)
+  }, [open, mode])
 
   // Greet on first open
   const hasGreetedRef = useRef(false)
@@ -72,11 +76,10 @@ export default function AvatarTeacherWidget() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  const handleSpeechEnd = () => {
-    setPhase('idle')
-  }
+  const handleSpeechEnd = () => setPhase('idle')
 
-  const handleSubmit = async () => {
+  // ── Text mode: submit ─────────────────────────────────────────────────────
+  const handleTextSubmit = async () => {
     const q = question.trim()
     if (!q || phase === 'thinking' || phase === 'speaking') return
 
@@ -113,8 +116,20 @@ export default function AvatarTeacherWidget() {
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSubmit()
+      handleTextSubmit()
     }
+  }
+
+  // ── Mode toggle ───────────────────────────────────────────────────────────
+  const switchMode = (next: UIMode) => {
+    clear()
+    setPhase('idle')
+    setMode(next)
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    clear()
   }
 
   return (
@@ -122,8 +137,10 @@ export default function AvatarTeacherWidget() {
 
       {/* ── Expanded panel ── */}
       {open && (
-        <div className="w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-             style={{ maxHeight: '600px' }}>
+        <div
+          className="w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+          style={{ maxHeight: '620px' }}
+        >
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-400">
@@ -135,80 +152,160 @@ export default function AvatarTeacherWidget() {
                 {phase === 'speaking' && t('avatar.speaking')}
               </span>
             </div>
-            <button
-              onClick={() => { setOpen(false); clear() }}
-              className="text-white/80 hover:text-white transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
 
-          {/* 3D Avatar canvas */}
-          <div className="flex-shrink-0">
-            <AvatarTutor
-              audioUrl={audioUrl}
-              wordBoundaries={wordBoundaries}
-              height={200}
-              onSpeechEnd={handleSpeechEnd}
-            />
-          </div>
-
-          {/* Chat transcript */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0"
-               style={{ maxHeight: '180px' }}>
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`
-                  max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug
-                  ${msg.role === 'user'
-                    ? 'bg-amber-500 text-white rounded-br-sm'
-                    : 'bg-slate-100 text-slate-800 rounded-bl-sm'}
-                `}>
-                  {msg.content}
-                </div>
+            {/* Mode switcher + close */}
+            <div className="flex items-center gap-2">
+              {/* Text / Voice toggle pills */}
+              <div className="flex bg-amber-600/40 rounded-full p-0.5 gap-0.5">
+                <button
+                  onClick={() => switchMode('text')}
+                  className={`
+                    rounded-full p-1 transition-colors
+                    ${mode === 'text' ? 'bg-white text-amber-600' : 'text-white/80 hover:text-white'}
+                  `}
+                  title={t('avatar.voice.textMode')}
+                >
+                  <Keyboard size={13} />
+                </button>
+                <button
+                  onClick={() => switchMode('voice')}
+                  className={`
+                    rounded-full p-1 transition-colors
+                    ${mode === 'voice' ? 'bg-white text-amber-600' : 'text-white/80 hover:text-white'}
+                  `}
+                  title={t('avatar.voice.voiceMode')}
+                >
+                  <Mic size={13} />
+                </button>
               </div>
-            ))}
-            <div ref={chatBottomRef} />
+
+              <button
+                onClick={handleClose}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
-          {/* Input row */}
-          <div className="px-3 py-2 border-t border-slate-100 flex items-center gap-2">
-            <input
-              ref={inputRef}
-              value={question}
-              onChange={e => setQuestion(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={t('avatar.placeholder')}
-              disabled={phase === 'thinking'}
-              className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2
-                         focus:outline-none focus:ring-2 focus:ring-amber-400
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={!question.trim() || phase === 'thinking'}
-              className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40
-                         flex items-center justify-center text-white transition-colors flex-shrink-0"
-            >
-              {isLoading || phase === 'thinking'
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Send size={14} />
-              }
-            </button>
-          </div>
+          {/* ── VOICE MODE ── */}
+          {mode === 'voice' ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Chat transcript (voice) */}
+              <div
+                className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0"
+                style={{ maxHeight: '200px' }}
+              >
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`
+                      max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug
+                      ${msg.role === 'user'
+                        ? 'bg-amber-500 text-white rounded-br-sm'
+                        : 'bg-slate-100 text-slate-800 rounded-bl-sm'}
+                    `}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatBottomRef} />
+              </div>
 
-          {/* Language / voice hint */}
-          <div className="px-3 pb-2 flex items-center gap-1 text-[10px] text-slate-400">
-            <Mic size={9} />
-            <span>
-              {lang === 'kg' ? 'Назгул (кыргызча)' :
-               lang === 'ru' ? 'Светлана (русский)' :
-               'Jenny (English)'}
-            </span>
-          </div>
+              {/* Voice session (avatar + PTT button) */}
+              <div className="px-3 py-3 flex flex-col items-center border-t border-slate-100">
+                <VoiceTutorSession
+                  lang={lang}
+                  audioUrl={audioUrl}
+                  wordBoundaries={wordBoundaries}
+                  isLoading={isLoading}
+                  speakTimed={speakTimed}
+                  clear={clear}
+                  onSpeechEnd={handleSpeechEnd}
+                  onUserMessage={text => setMessages(prev => [...prev, { role: 'user', content: text }])}
+                  onAidaReply={text => setMessages(prev => [...prev, { role: 'aida', content: text }])}
+                  onError={msg => {
+                    setMessages(prev => [...prev, { role: 'aida', content: t('avatar.error') }])
+                    console.error('[VoiceMode]', msg)
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            /* ── TEXT MODE ── */
+            <>
+              {/* 3D Avatar canvas */}
+              <div className="flex-shrink-0">
+                <AvatarTutor
+                  audioUrl={audioUrl}
+                  wordBoundaries={wordBoundaries}
+                  height={200}
+                  onSpeechEnd={handleSpeechEnd}
+                />
+              </div>
+
+              {/* Chat transcript */}
+              <div
+                className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0"
+                style={{ maxHeight: '180px' }}
+              >
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`
+                      max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug
+                      ${msg.role === 'user'
+                        ? 'bg-amber-500 text-white rounded-br-sm'
+                        : 'bg-slate-100 text-slate-800 rounded-bl-sm'}
+                    `}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Input row */}
+              <div className="px-3 py-2 border-t border-slate-100 flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  value={question}
+                  onChange={e => setQuestion(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder={t('avatar.placeholder')}
+                  disabled={phase === 'thinking'}
+                  className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2
+                             focus:outline-none focus:ring-2 focus:ring-amber-400
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <button
+                  onClick={handleTextSubmit}
+                  disabled={!question.trim() || phase === 'thinking'}
+                  className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40
+                             flex items-center justify-center text-white transition-colors flex-shrink-0"
+                >
+                  {isLoading || phase === 'thinking'
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Send size={14} />
+                  }
+                </button>
+              </div>
+
+              {/* Language / voice hint */}
+              <div className="px-3 pb-2 flex items-center gap-1 text-[10px] text-slate-400">
+                <Mic size={9} />
+                <span>
+                  {lang === 'kg' ? 'Назгул (кыргызча)' :
+                   lang === 'ru' ? 'Светлана (русский)' :
+                   'Jenny (English)'}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       )}
 

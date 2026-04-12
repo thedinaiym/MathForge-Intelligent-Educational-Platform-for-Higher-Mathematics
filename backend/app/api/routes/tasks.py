@@ -223,7 +223,7 @@ async def generate_tasks(
     Costs TOKEN_COST_PDF tokens.  Does NOT compile a PDF.
     """
     user_id = uuid.UUID(current_user.sub)
-    await _deduct_tokens(user_id, TOKEN_COST_PDF, db)
+    await _deduct_tokens(user_id, TOKEN_COST_ADAPTIVE, db)
 
     generated = await _generate_tasks(payload, locale, db)
 
