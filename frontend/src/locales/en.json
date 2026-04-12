@@ -180,7 +180,6 @@
     "selectAll": "Select all",
     "selectNone": "Clear",
     "noTopics": "No topics for this difficulty",
-    "variantCountHint": "Max. 50 variants",
     "stepSubject": "Step 1 — Subject",
     "stepDifficulty": "Step 2 — Difficulty",
     "stepTopic": "Step 3 — Topic",
@@ -547,7 +546,7 @@
     "joinHint": "Enter the 6-character code provided by your teacher.",
     "codePlaceholder": "e.g. X7K2AQ",
     "join": "Join",
-    "joinedSuccess": "Joined "{{name}}" successfully!",
+    "joinedSuccess": "Joined '{{name}}' successfully!",
     "myClasses": "My enrolled classes",
     "notJoinedAny": "You have not joined any class yet.",
     "teacher": "Teacher"
