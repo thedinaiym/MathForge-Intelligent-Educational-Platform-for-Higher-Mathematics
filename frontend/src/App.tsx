@@ -20,6 +20,7 @@ import LibraryPage from './pages/teacher/LibraryPage'
 import TeacherClassrooms from './pages/teacher/TeacherClassrooms'
 import TeacherLessons from './pages/teacher/TeacherLessons'
 import StudentLessons from './pages/student/StudentLessons'
+import StudentPracticePDF from './pages/student/StudentPracticePDF'
 import AdminDataset from './pages/admin/AdminDataset'
 import MathLibraryPage from './pages/shared/MathLibraryPage'
 import Dashboard from './pages/shared/Dashboard'
@@ -322,6 +323,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={['student', 'teacher', 'admin']}>
                 <StudentLessons />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="student/practice-pdf"
+            element={
+              <ProtectedRoute roles={['student', 'teacher', 'admin']}>
+                <StudentPracticePDF />
               </ProtectedRoute>
             }
           />

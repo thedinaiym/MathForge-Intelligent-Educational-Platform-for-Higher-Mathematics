@@ -26,7 +26,7 @@ import json
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, List, UploadFile, status
 from groq import AsyncGroq
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -382,8 +382,19 @@ Rules:
 """
 
 
-async def _call_tutor_llm(steps: list[str], locale: str) -> dict:
-    """Call Groq Llama-3 in JSON mode to analyse the solution as a math tutor."""
+async def _call_tutor_llm(
+    steps: list[str],
+    locale: str,
+    problem_text: str = "",
+) -> dict:
+    """Call Groq Llama-3 in JSON mode to analyse the solution as a math tutor.
+
+    Args:
+        steps:        Ordered solution steps extracted via Vision OCR.
+        locale:       Response language (en / ru / kg).
+        problem_text: The problem condition typed by the student (provides
+                      crucial context so the AI knows what the question asks).
+    """
     if not settings.groq_api_key:
         return {
             "is_correct": False,
@@ -394,6 +405,10 @@ async def _call_tutor_llm(steps: list[str], locale: str) -> dict:
 
     steps_text = "\n".join(f"Step {i + 1}: {s}" for i, s in enumerate(steps))
     lang_note = _LANG_NOTE.get(locale, _LANG_NOTE["ru"])
+
+    condition_section = (
+        f"Problem condition:\n{problem_text.strip()}\n\n" if problem_text.strip() else ""
+    )
 
     client = AsyncGroq(api_key=settings.groq_api_key)
     response = await client.chat.completions.create(
@@ -406,9 +421,10 @@ async def _call_tutor_llm(steps: list[str], locale: str) -> dict:
             {
                 "role": "user",
                 "content": (
-                    "Here is the student's solution (extracted by OCR):\n\n"
+                    condition_section
+                    + "Student's solution (extracted by OCR):\n\n"
                     + steps_text
-                    + "\n\nAnalyze it and return the JSON."
+                    + "\n\nAnalyze the solution in the context of the problem above and return the JSON."
                 ),
             },
         ],
@@ -461,9 +477,13 @@ async def _find_practice_templates(
 
 @router.post("/check-homework", response_model=HomeworkCheckResponse)
 async def check_homework(
-    image: UploadFile = File(
+    problem_text: str = Form(
+        default="",
+        description="The problem condition typed by the student (optional but recommended).",
+    ),
+    files: List[UploadFile] = File(
         ...,
-        description="Photo of the student's handwritten homework (JPEG/PNG/WebP ≤ 10 MB).",
+        description="One or more photos of the student's handwritten solution steps (JPEG/PNG/WebP ≤ 10 MB each).",
     ),
     locale: str = Depends(get_locale),
     current_user: TokenPayload = Depends(get_current_user),
@@ -472,32 +492,44 @@ async def check_homework(
     """
     Full homework-checker pipeline.
 
+    Accepts:
+      - problem_text  (Form field, optional) — the problem condition for context.
+      - files         (one or more images)   — photos of the student's solution.
+
     Steps:
-      A. Validate image content-type and size.
+      A. Validate each image's content-type and size.
       B. Deduct 1 token atomically (402 if insufficient).
-      C. Vision OCR — Groq vision model extracts solution steps.
-      D. Tutor LLM  — Groq Llama-3 analyses the steps, identifies the error
-                       concept, and writes a friendly explanation.
-      E. Practice generation — find 3 templates matching the weak topic, generate
-                       unique problems with TaskGenerator (SymPy).
+      C. Vision OCR — extract steps from every uploaded image and merge them
+                       in upload order into a single step sequence.
+      D. Tutor LLM  — Groq Llama-3 analyses steps + problem condition,
+                       identifies the error concept, explains it clearly.
+      E. Practice generation — find 3 templates matching the weak topic.
       F. Activity log — increment the daily heatmap counter.
     """
-    # ── A. Validate content type ──────────────────────────────────────────
     allowed = {"image/jpeg", "image/png", "image/webp"}
-    content_type = (image.content_type or "").lower()
-    if content_type not in allowed:
+
+    if not files:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Unsupported image type '{content_type}'. Use JPEG, PNG, or WebP.",
+            detail="At least one solution image is required.",
         )
 
-    # ── A. Read & size-check ──────────────────────────────────────────────
-    image_bytes = await image.read()
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Image exceeds 10 MB limit.",
-        )
+    # ── A. Validate all files upfront ────────────────────────────────────
+    validated: list[tuple[bytes, str]] = []
+    for f in files:
+        content_type = (f.content_type or "").lower()
+        if content_type not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unsupported image type '{content_type}'. Use JPEG, PNG, or WebP.",
+            )
+        raw = await f.read()
+        if len(raw) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Image '{f.filename}' exceeds the 10 MB limit.",
+            )
+        validated.append((raw, content_type))
 
     user_id = uuid.UUID(current_user.sub)
 
@@ -514,30 +546,33 @@ async def check_homework(
     account.token_balance = round(account.token_balance - TOKEN_COST_HOMEWORK, 2)
     await db.commit()
 
-    # ── C. Vision OCR ─────────────────────────────────────────────────────
-    try:
-        steps = await VisionAgent.extract_steps(image_bytes, mime_type=content_type)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "Could not extract steps from the image. "
-                "Please ensure the handwriting is clear and well-lit. "
-                f"Detail: {exc}"
-            ),
-        ) from exc
+    # ── C. Vision OCR — extract steps from every image and merge ─────────
+    all_steps: list[str] = []
+    for raw, mime in validated:
+        try:
+            page_steps = await VisionAgent.extract_steps(raw, mime_type=mime)
+            all_steps.extend(page_steps)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Could not extract steps from one of the images. "
+                    "Please ensure the handwriting is clear and well-lit. "
+                    f"Detail: {exc}"
+                ),
+            ) from exc
 
+    steps = all_steps
     if not steps:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No solution steps found in the image. Please upload a clearer photo.",
+            detail="No solution steps found in the uploaded images. Please upload clearer photos.",
         )
 
     # ── D. LLM Tutor analysis ─────────────────────────────────────────────
     try:
-        analysis = await _call_tutor_llm(steps, locale)
+        analysis = await _call_tutor_llm(steps, locale, problem_text=problem_text)
     except Exception:
-        # Tutor failure must not block the student — return safe defaults
         analysis = {
             "is_correct": False,
             "error_step_index": None,

@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag, avatar, classes, lessons, tutor
+from app.api.routes import auth, tasks, ocr, billing, stats, teacher, ort, rag, avatar, classes, lessons, tutor, student_pdf
 from app.db.database import Base, engine, AsyncSessionLocal
 from app.db.seed import seed_database
 from app.api import router_admin
@@ -140,7 +140,8 @@ app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
 app.include_router(avatar.router, prefix="/api/avatar", tags=["avatar"])
 app.include_router(classes.router, prefix="/api/classes", tags=["classes"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["lessons"])
-app.include_router(tutor.router,   prefix="/api/tutor",   tags=["tutor"])
+app.include_router(tutor.router,       prefix="/api/tutor",   tags=["tutor"])
+app.include_router(student_pdf.router, prefix="/api/student", tags=["student"])
 
 
 @app.get("/")

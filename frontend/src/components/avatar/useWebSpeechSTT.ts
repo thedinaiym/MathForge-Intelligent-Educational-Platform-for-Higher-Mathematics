@@ -14,12 +14,23 @@
  * when the user stops speaking, but we still call stop() explicitly for PTT
  * to cut recognition as soon as the button is released.
  */
+
+// TypeScript's lib.dom.d.ts already declares SpeechRecognition and its events.
+// We only need to extend Window with the vendor-prefixed webkit variant so the
+// compiler accepts `window.webkitSpeechRecognition` without casting.
+declare global {
+  interface Window {
+    SpeechRecognition:        typeof SpeechRecognition
+    webkitSpeechRecognition:  typeof SpeechRecognition
+  }
+}
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Normalise vendor-prefixed constructor
 const SpeechRecognitionCtor: (new () => SpeechRecognition) | null =
   (typeof window !== 'undefined' &&
-    (window.SpeechRecognition ?? (window as any).webkitSpeechRecognition)) || null
+    (window.SpeechRecognition ?? window.webkitSpeechRecognition)) || null
 
 export interface UseWebSpeechSTTOptions {
   /** BCP-47 language tag, e.g. 'ru-RU', 'en-US', 'ky-KG' */

@@ -54,7 +54,7 @@ PORT = int(os.getenv("PORT", os.getenv("TTS_PORT", "8001")))
 
 _raw_origins = os.getenv("TTS_CORS_ORIGINS", "*").strip()
 if _raw_origins == "*":
-    CORS_ORIGINS   = ["*"]
+    CORS_ORIGINS   = ["*", "https://mathforge.vercel.app"]
     CORS_CREDS     = False     # credentials not supported with wildcard
 else:
     CORS_ORIGINS   = [o.strip() for o in _raw_origins.split(",") if o.strip()]

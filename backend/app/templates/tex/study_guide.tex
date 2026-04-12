@@ -1,0 +1,95 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian,english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small\textit{{{ title }}}}
+\lhead{\small\textit{MathForge Study Guide}}
+\rfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\begin{document}
+
+%% ══════════════════════════════════════════════════════════════
+%%  COVER / TITLE
+%% ══════════════════════════════════════════════════════════════
+
+\begin{center}
+    {\LARGE\bfseries {{ title }}} \\[6pt]
+    {\large MathForge · Self-Practice Guide} \\[4pt]
+    {\normalsize {{ count }} {{ task_word }} · {{ difficulty_label }}}
+\end{center}
+
+\vspace{0.3cm}
+\noindent\rule{\linewidth}{0.6pt}
+\vspace{0.3cm}
+
+\noindent
+{\small\itshape
+{{ instructions }}
+}
+
+\vspace{0.8cm}
+
+%% ══════════════════════════════════════════════════════════════
+%%  PROBLEMS  (no answers visible here)
+%% ══════════════════════════════════════════════════════════════
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=0pt]
+{% for task in tasks %}
+    \needspace{7\baselineskip}
+    \item
+    {% if task.title %}
+    {\small {{ task.title }}}
+    {% endif %}
+    \[
+        {{ task.condition_latex }}
+    \]
+    \vspace{2.8cm}   %% work space for student
+    \noindent\rule{0.4\linewidth}{0.3pt}
+    \vspace{0.4cm}
+
+{% endfor %}
+\end{enumerate}
+
+%% ══════════════════════════════════════════════════════════════
+%%  ANSWER KEY  — always starts on a NEW page
+%%  (fold or tear off before giving the sheet to a peer)
+%% ══════════════════════════════════════════════════════════════
+
+\newpage
+\thispagestyle{fancy}
+
+\begin{center}
+    {\Large\bfseries {{ answers_title }}} \\[4pt]
+    {\normalsize\bfseries {{ title }}}
+\end{center}
+
+\vspace{0.5cm}
+\noindent\rule{\linewidth}{0.6pt}
+\vspace{0.5cm}
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=10pt]
+{% for task in tasks %}
+    \needspace{4\baselineskip}
+    \item
+    {\small\textbf{{{ condition_label }}:}}
+    \[
+        {{ task.condition_latex }}
+    \]
+    {\small\textbf{{{ answer_label }}:}}
+    \[
+        {{ task.answer_latex }}
+    \]
+{% endfor %}
+\end{enumerate}
+
+\end{document}

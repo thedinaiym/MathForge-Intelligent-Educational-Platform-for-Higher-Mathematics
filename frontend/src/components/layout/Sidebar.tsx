@@ -15,6 +15,7 @@ import {
   BookCheck,
   Users,
   Video,
+  FileDown,
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -117,6 +118,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </NavLink>
             <NavLink to="/app/student/lessons" className={navLinkClass} onClick={onClose}>
               <Video size={18} /> {t('nav.lessons')}
+            </NavLink>
+            <NavLink to="/app/student/practice-pdf" className={navLinkClass} onClick={onClose}>
+              <FileDown size={18} /> {t('nav.practicePdf')}
             </NavLink>
           </>
         )}

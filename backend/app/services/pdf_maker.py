@@ -101,6 +101,89 @@ def _compile_sync(latex_source: str) -> bytes:
 
 # ── Public async API ──────────────────────────────────────────────────────────
 
+async def compile_study_guide_to_pdf(
+    title: str,
+    tasks: list[dict],
+    difficulty_label: str = "Medium",
+    locale: str = "ru",
+) -> bytes:
+    """
+    Render and compile a student self-practice study guide.
+
+    Layout:
+      Page 1+: Problems only — no answers visible; 2.8 cm work space per problem.
+      Last page: Answer key with condition + answer for each problem.
+
+    Args:
+        title:           Localised title (e.g. "Calculus — Medium").
+        tasks:           List of dicts with keys: question_text, condition_latex, answer_latex.
+        difficulty_label: Human-readable difficulty string for the cover.
+        locale:          "en" | "ru" | "kg" — controls instruction/label text.
+
+    Returns:
+        Raw PDF bytes.
+    """
+    _LABELS: dict[str, dict] = {
+        "en": {
+            "task_word":      "Problems",
+            "instructions":   (
+                "Solve each problem in the space provided. "
+                "The answer key is on the last page — "
+                "try to solve all problems before looking."
+            ),
+            "answers_title":  "Answer Key",
+            "condition_label": "Problem",
+            "answer_label":   "Answer",
+        },
+        "ru": {
+            "task_word":      "задач",
+            "instructions":   (
+                "Решите каждую задачу в отведённом месте. "
+                "Ответы находятся на последней странице — "
+                "постарайтесь решить все задачи, прежде чем заглядывать туда."
+            ),
+            "answers_title":  "Ответы и решения",
+            "condition_label": "Условие",
+            "answer_label":   "Ответ",
+        },
+        "kg": {
+            "task_word":      "маселе",
+            "instructions":   (
+                "Ар бир тапшырманы берилген жерде чечиңиз. "
+                "Жооптор акыркы бетте — "
+                "бардык тапшырмаларды чечкенден кийин гана аны ачыңыз."
+            ),
+            "answers_title":  "Жооптор жана чечимдер",
+            "condition_label": "Шарт",
+            "answer_label":   "Жооп",
+        },
+    }
+    lbl = _LABELS.get(locale, _LABELS["ru"])
+
+    task_entries = [
+        {
+            "title":           t.get("question_text", ""),
+            "condition_latex": t.get("condition_latex", ""),
+            "answer_latex":    t.get("answer_latex", r"\text{—}"),
+        }
+        for t in tasks
+    ]
+
+    context = {
+        "title":           title,
+        "count":           len(task_entries),
+        "difficulty_label": difficulty_label,
+        "tasks":           task_entries,
+        **lbl,
+    }
+
+    template = _jinja_env.get_template("study_guide.tex")
+    latex_source = template.render(**context)
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _compile_sync, latex_source)
+
+
 async def compile_latex_to_pdf(
     title: str,
     variants_tasks: list[list[dict]],

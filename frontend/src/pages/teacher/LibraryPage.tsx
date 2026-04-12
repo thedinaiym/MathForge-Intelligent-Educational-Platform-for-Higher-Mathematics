@@ -16,7 +16,7 @@ import { Upload, FileText, FlaskConical, CheckCircle, AlertCircle, Layers, Lock 
 import api from '../../lib/axios'
 import { useCategories } from '../../hooks/useCategories'
 import { useAuthStore } from '../../store/authStore'
-import MathRenderer from '../../components/math/MathRenderer'
+import MathRenderer, { MathText } from '../../components/math/MathRenderer'
 import Button from '../../components/ui/Button'
 
 type Tab = 'parse' | 'generate'
@@ -273,7 +273,7 @@ function TemplateCard({ tpl, lang }: { tpl: ParsedTemplate; lang: string }) {
 
       {questionText && (
         <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 overflow-x-auto">
-          <MathRenderer latex={questionText} block={false} />
+          <MathText text={questionText} className="text-sm text-slate-700" />
         </div>
       )}
 
@@ -401,7 +401,9 @@ function TaskCard({ task }: { task: GeneratedTask }) {
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm space-y-3">
       {task.question_text && (
-        <p className="text-sm text-slate-700">{task.question_text}</p>
+        <p className="text-sm text-slate-700">
+          <MathText text={task.question_text} />
+        </p>
       )}
 
       <div className="space-y-2">

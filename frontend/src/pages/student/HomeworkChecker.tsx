@@ -1,15 +1,26 @@
 /**
- * HomeworkChecker — Phase 18
+ * HomeworkChecker — Phase 19 overhaul
  *
- * Upload a photo of handwritten homework → AI pipeline:
- *   1. Groq Vision  — extract solution steps from the image
- *   2. Groq Tutor   — identify errors, explain the concept, suggest weak topic
- *   3. TaskGenerator — generate 3 SymPy practice problems for the weak topic
+ * Input:
+ *   1. Textarea — Problem Condition (Условие задачи). Gives the AI context.
+ *   2. Multi-image dropzone — upload one or more photos of the student's
+ *      handwritten solution steps.
+ *
+ * AI pipeline (backend /study/check-homework):
+ *   Vision OCR  → extract steps from every photo (merged in order)
+ *   Tutor LLM   → identify exact error step, explain the concept
+ *   TaskGenerator → 3 SymPy practice problems on the weak topic
+ *
+ * Momentum Bridge:
+ *   If a mistake is found, a prominent CTA button redirects the student to
+ *   /app/student/analyze?topic=<weak_topic> so they immediately practice
+ *   the specific concept they got wrong.
  *
  * Cost: 1 token per check.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import {
@@ -18,7 +29,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Image as ImageIcon,
   RotateCcw,
+  Target,
   UploadCloud,
   X,
   Zap,
@@ -26,6 +39,7 @@ import {
 import api from '../../lib/axios'
 import { useUIStore } from '../../store/uiStore'
 import MathRenderer from '../../components/math/MathRenderer'
+import { MathText } from '../../components/math/MathRenderer'
 import Button from '../../components/ui/Button'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -58,15 +72,65 @@ function usePhaseLabel(isActive: boolean, phases: string[]): string {
   return phases[phase]
 }
 
+// ── Thumbnail strip ──────────────────────────────────────────────────────────
+
+interface ImageEntry {
+  file: File
+  preview: string
+}
+
+function ThumbnailStrip({
+  entries,
+  onRemove,
+}: {
+  entries: ImageEntry[]
+  onRemove: (idx: number) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {entries.map((entry, idx) => (
+        <div
+          key={idx}
+          className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0"
+        >
+          <img
+            src={entry.preview}
+            alt={`solution page ${idx + 1}`}
+            className="w-full h-full object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(idx)}
+            className="absolute top-0.5 right-0.5 bg-white/90 hover:bg-white rounded-full p-0.5 shadow text-slate-500 hover:text-red-500 transition-colors"
+          >
+            <X size={11} />
+          </button>
+          <span className="absolute bottom-0 left-0 right-0 text-center text-[10px] font-bold text-white bg-black/40 py-0.5">
+            {idx + 1}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function HomeworkChecker() {
   const { t } = useTranslation()
   const { tokenBalance } = useUIStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [problemText, setProblemText] = useState('')
+  const [imageEntries, setImageEntries] = useState<ImageEntry[]>([])
+
+  // Revoke object URLs on unmount to prevent memory leaks
+  const entriesRef = useRef(imageEntries)
+  entriesRef.current = imageEntries
+  useEffect(() => {
+    return () => entriesRef.current.forEach((e) => URL.revokeObjectURL(e.preview))
+  }, [])
 
   const phases = [
     t('homework.phases.scanning'),
@@ -74,27 +138,36 @@ export default function HomeworkChecker() {
     t('homework.phases.finding'),
   ]
 
+  // ── Dropzone (multiple) ──────────────────────────────────────────────────
   const onDrop = useCallback((accepted: File[]) => {
-    const f = accepted[0]
-    if (!f) return
-    setImageFile(f)
-    const reader = new FileReader()
-    reader.onload = (e) => setImagePreview(e.target?.result as string)
-    reader.readAsDataURL(f)
+    const newEntries: ImageEntry[] = accepted.map((f) => ({
+      file: f,
+      preview: URL.createObjectURL(f),
+    }))
+    setImageEntries((prev) => [...prev, ...newEntries])
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxSize: 10 * 1024 * 1024,
-    multiple: false,
+    multiple: true,
   })
 
+  const removeImage = (idx: number) => {
+    setImageEntries((prev) => {
+      URL.revokeObjectURL(prev[idx].preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
+  // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation<HomeworkCheckResponse, Error>({
     mutationFn: async () => {
-      if (!imageFile) throw new Error('No image selected')
+      if (imageEntries.length === 0) throw new Error('No images selected')
       const form = new FormData()
-      form.append('image', imageFile)
+      form.append('problem_text', problemText.trim())
+      imageEntries.forEach((entry) => form.append('files', entry.file))
       const { data } = await api.post<HomeworkCheckResponse>(
         '/study/check-homework',
         form,
@@ -109,13 +182,10 @@ export default function HomeworkChecker() {
 
   const phaseLabel = usePhaseLabel(mutation.isPending, phases)
 
-  const clearImage = () => {
-    setImageFile(null)
-    setImagePreview(null)
-  }
-
   const handleReset = () => {
-    clearImage()
+    imageEntries.forEach((e) => URL.revokeObjectURL(e.preview))
+    setImageEntries([])
+    setProblemText('')
     mutation.reset()
   }
 
@@ -126,7 +196,7 @@ export default function HomeworkChecker() {
   })()
 
   const noTokens = tokenBalance < 1
-  const canSubmit = !!imageFile && !noTokens && !mutation.isPending
+  const canSubmit = imageEntries.length > 0 && !noTokens && !mutation.isPending
 
   return (
     <div className="max-w-2xl">
@@ -156,13 +226,39 @@ export default function HomeworkChecker() {
         </p>
       )}
 
-      {/* Upload zone — hidden once result is ready */}
+      {/* Input area — hidden once result is ready */}
       {!mutation.isSuccess && (
-        <>
-          {!imagePreview ? (
+        <div className="space-y-4">
+
+          {/* ── Part A: Problem Condition textarea ── */}
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              {t('homework.conditionLabel')}
+              <span className="ml-1.5 text-xs font-normal text-slate-400">
+                ({t('homework.conditionHint')})
+              </span>
+            </label>
+            <textarea
+              value={problemText}
+              onChange={(e) => setProblemText(e.target.value)}
+              rows={3}
+              placeholder={t('homework.conditionPlaceholder')}
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700
+                         placeholder:text-slate-300 resize-none
+                         focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
+                         transition-colors"
+            />
+          </div>
+
+          {/* ── Part B: Solution photos dropzone ── */}
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              {t('homework.solutionPhotosLabel')}
+            </label>
+
             <div
               {...getRootProps()}
-              className={`rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors mb-4 ${
+              className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
                 isDragActive
                   ? 'border-amber-400 bg-amber-50'
                   : 'border-slate-200 bg-slate-50 hover:border-amber-300 hover:bg-amber-50/40'
@@ -170,33 +266,37 @@ export default function HomeworkChecker() {
             >
               <input {...getInputProps()} />
               <UploadCloud
-                size={40}
-                className={`mx-auto mb-3 ${isDragActive ? 'text-amber-500' : 'text-slate-300'}`}
+                size={34}
+                className={`mx-auto mb-2 ${isDragActive ? 'text-amber-500' : 'text-slate-300'}`}
               />
-              <p className="text-sm font-medium text-slate-600 mb-1">
+              <p className="text-sm font-medium text-slate-600 mb-0.5">
                 {t('homework.upload')}
               </p>
               <p className="text-xs text-slate-400">{t('homework.uploadHint')}</p>
+              {imageEntries.length > 0 && (
+                <p className="mt-2 text-xs text-amber-600 font-medium">
+                  {t('homework.imagesAdded', { count: imageEntries.length })}
+                </p>
+              )}
             </div>
-          ) : (
-            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 mb-4">
-              <img
-                src={imagePreview}
-                alt="homework preview"
-                className="w-full max-h-72 object-contain"
-              />
-              <button
-                onClick={(e) => { e.stopPropagation(); clearImage() }}
-                className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-1.5 shadow text-slate-600 hover:text-red-500 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
+
+            {/* Thumbnail strip */}
+            {imageEntries.length > 0 && (
+              <ThumbnailStrip entries={imageEntries} onRemove={removeImage} />
+            )}
+
+            {/* Page-order hint */}
+            {imageEntries.length > 1 && (
+              <p className="mt-2 text-xs text-slate-400 flex items-center gap-1">
+                <ImageIcon size={11} />
+                {t('homework.multiPageHint')}
+              </p>
+            )}
+          </div>
 
           {/* Error banner */}
           {mutation.isError && (
-            <div className="flex items-start gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-700">{errorMsg}</p>
             </div>
@@ -210,12 +310,17 @@ export default function HomeworkChecker() {
           >
             {mutation.isPending ? phaseLabel : t('homework.analyze')}
           </Button>
-        </>
+        </div>
       )}
 
       {/* Results */}
       {mutation.isSuccess && mutation.data && (
-        <ResultPanel data={mutation.data} />
+        <ResultPanel
+          data={mutation.data}
+          onNavigateToAnalyzer={(topic) =>
+            navigate(`/app/student/analyze?topic=${encodeURIComponent(topic)}`)
+          }
+        />
       )}
     </div>
   )
@@ -223,7 +328,13 @@ export default function HomeworkChecker() {
 
 // ── Result panel ─────────────────────────────────────────────────────────────
 
-function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
+function ResultPanel({
+  data,
+  onNavigateToAnalyzer,
+}: {
+  data: HomeworkCheckResponse
+  onNavigateToAnalyzer: (topic: string) => void
+}) {
   const { t } = useTranslation()
   const [showSteps, setShowSteps] = useState(false)
 
@@ -243,7 +354,11 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
           ) : (
             <AlertCircle size={20} className="text-amber-600" />
           )}
-          <h2 className={`font-semibold text-base ${data.is_correct ? 'text-emerald-800' : 'text-amber-800'}`}>
+          <h2
+            className={`font-semibold text-base ${
+              data.is_correct ? 'text-emerald-800' : 'text-amber-800'
+            }`}
+          >
             {data.is_correct
               ? t('homework.result.correct')
               : t('homework.result.errorFound', {
@@ -251,7 +366,11 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
                 })}
           </h2>
         </div>
-        <p className={`text-sm leading-relaxed ${data.is_correct ? 'text-emerald-700' : 'text-amber-800'}`}>
+        <p
+          className={`text-sm leading-relaxed ${
+            data.is_correct ? 'text-emerald-700' : 'text-amber-800'
+          }`}
+        >
           {data.feedback}
         </p>
 
@@ -266,6 +385,32 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
           </div>
         )}
       </div>
+
+      {/* ── Momentum Bridge CTA ── */}
+      {!data.is_correct && data.weak_topic && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-indigo-800">
+              {t('homework.bridge.title')}
+            </p>
+            <p className="text-xs text-indigo-600 mt-0.5">
+              {t('homework.bridge.subtitle', {
+                topic: data.weak_topic.replace(/_/g, ' '),
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateToAnalyzer(data.weak_topic!)}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl
+                       bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                       text-white text-sm font-semibold shadow-sm transition-colors"
+          >
+            <Target size={15} />
+            {t('homework.bridge.cta')}
+          </button>
+        </div>
+      )}
 
       {/* ── Extracted steps (collapsible) ── */}
       {data.extracted_steps.length > 0 && (
@@ -282,8 +427,7 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
           {showSteps && (
             <ol className="px-4 pb-4 space-y-2">
               {data.extracted_steps.map((step, idx) => {
-                const isWrong =
-                  !data.is_correct && data.error_step_index === idx
+                const isWrong = !data.is_correct && data.error_step_index === idx
                 return (
                   <li
                     key={idx}
@@ -300,7 +444,9 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
                     >
                       {idx + 1}
                     </span>
-                    <span className="break-all">{step}</span>
+                    <span className="break-all">
+                      <MathText text={step} />
+                    </span>
                   </li>
                 )
               })}
@@ -320,9 +466,10 @@ function ResultPanel({ data }: { data: HomeworkCheckResponse }) {
           </div>
           {data.weak_topic && (
             <p className="text-xs text-slate-400 mb-3">
-              {t('homework.result.practiceSubtitle')}
-              {' '}
-              <span className="font-mono text-amber-600">{data.weak_topic.replace(/_/g, ' ')}</span>
+              {t('homework.result.practiceSubtitle')}{' '}
+              <span className="font-mono text-amber-600">
+                {data.weak_topic.replace(/_/g, ' ')}
+              </span>
             </p>
           )}
           <div className="space-y-3">
@@ -363,7 +510,7 @@ function PracticeTaskCard({ task, index }: { task: PracticeTask; index: number }
       {/* Question */}
       {task.question_text && (
         <div className="px-4 pb-2 text-sm text-slate-700">
-          <MathRenderer latex={task.question_text} block={false} />
+          <MathText text={task.question_text} />
         </div>
       )}
 
