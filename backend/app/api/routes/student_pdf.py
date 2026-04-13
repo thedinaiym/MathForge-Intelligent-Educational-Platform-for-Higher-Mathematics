@@ -18,6 +18,7 @@ Accessible to all authenticated roles; intended primarily for students.
 """
 from __future__ import annotations
 
+import traceback  # <--- ДОБАВЛЕНО ДЛЯ ЛОГИРОВАНИЯ ОШИБОК
 import uuid
 from datetime import date
 
@@ -143,8 +144,12 @@ async def generate_study_guide_pdf(
                 "condition_latex": task.get("condition_latex", ""),
                 "answer_latex":    task.get("answer_latex", ""),
             })
-        except Exception:
+        except Exception as e:
+            # === ИСПРАВЛЕННЫЙ БЛОК: ТЕПЕРЬ ОШИБКИ БУДУТ ВИДНЫ В ЛОГАХ ===
+            print(f"🔥 ОШИБКА ГЕНЕРАЦИИ (Шаблон {tmpl.id}): {str(e)}", flush=True)
+            print(traceback.format_exc(), flush=True)
             continue
+            # ============================================================
 
     if not generated:
         raise HTTPException(
@@ -172,7 +177,9 @@ async def generate_study_guide_pdf(
             difficulty_label=difficulty_label,
             locale=locale,
         )
-    except RuntimeError as exc:
+    except Exception as exc: # <--- Заменил RuntimeError на Exception для надежности
+        print(f"🔥 ОШИБКА КОМПИЛЯЦИИ PDF: {str(exc)}", flush=True)
+        print(traceback.format_exc(), flush=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
