@@ -20,8 +20,7 @@ import { Bot, ChevronDown, Keyboard, Loader2, Mic, Send, X } from 'lucide-react'
 import AvatarTutor from './AvatarTutor'
 import VoiceTutorSession from './VoiceTutorSession'
 import { useTTSSpeech, type TTSLanguage } from './useTTSSpeech'
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
+import api from '../../lib/axios'
 
 // Map i18next language codes → TTS language codes
 const LANG_MAP: Record<string, TTSLanguage> = {
@@ -89,18 +88,10 @@ export default function AvatarTeacherWidget() {
     setPhase('thinking')
 
     try {
-      const token = localStorage.getItem('access_token') ?? ''
-      const res   = await fetch(`${API_BASE}/avatar/explain`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ question: q, language: lang }),
+      const { data } = await api.post<{ explanation: string }>('/avatar/explain', {
+        question: q,
+        language: lang,
       })
-
-      if (!res.ok) throw new Error(`API ${res.status}`)
-      const data: { explanation: string } = await res.json()
 
       setMessages(prev => [...prev, { role: 'aida', content: data.explanation }])
       await speakTimed(data.explanation, lang, 'female')

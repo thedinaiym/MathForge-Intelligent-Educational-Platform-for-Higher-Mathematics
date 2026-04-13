@@ -26,8 +26,7 @@ import AvatarTutor from './AvatarTutor'
 import { useWebSpeechSTT } from './useWebSpeechSTT'
 import type { TTSLanguage } from './useTTSSpeech'
 import type { WordBoundary } from './useTTSSpeech'
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
+import api from '../../lib/axios'
 
 // BCP-47 map for SpeechRecognition
 const STT_LANG_MAP: Record<TTSLanguage, string> = {
@@ -104,21 +103,10 @@ export default function VoiceTutorSession({
     clear()
 
     try {
-      const token = localStorage.getItem('access_token') ?? ''
-      const res = await fetch(`${API_BASE}/tutor/chat`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          messages: updatedHistory,
-          language: lang,
-        }),
+      const { data } = await api.post<{ reply: string }>('/tutor/chat', {
+        messages: updatedHistory,
+        language: lang,
       })
-
-      if (!res.ok) throw new Error(`API ${res.status}`)
-      const data: { reply: string } = await res.json()
       const reply = data.reply.trim()
 
       // Append Aida reply to history

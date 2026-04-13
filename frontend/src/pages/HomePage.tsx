@@ -19,6 +19,9 @@ import NewsSection from '../components/sections/NewsSection'
 import LibraryPreviewSection from '../components/sections/LibraryPreviewSection'
 import { useAuthStore } from '../store/authStore'
 import i18n from '../i18n'
+import AvatarTutor from '../components/avatar/AvatarTutor'
+import GuestChat from '../components/avatar/GuestChat'
+import { useTTSSpeech, type TTSLanguage } from '../components/avatar/useTTSSpeech'
 
 // ── Smooth-scroll helper ───────────────────────────────────────────────────────
 
@@ -99,116 +102,158 @@ function Navbar() {
 
 // ── Hero section ──────────────────────────────────────────────────────────────
 
+const LANG_MAP: Record<string, TTSLanguage> = { en: 'en', ru: 'ru', kg: 'kg', ky: 'kg' }
+
 function Hero() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  const scrollToAbout = () => {
-    document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })
+  const lang: TTSLanguage = LANG_MAP[i18n.resolvedLanguage ?? i18n.language ?? 'ru'] ?? 'ru'
+  const { audioUrl, wordBoundaries, speakTimed, clear } = useTTSSpeech()
+
+  const handleAidaReply = (text: string) => {
+    speakTimed(text, lang, 'female')
   }
 
+  const scrollToFeatures = () =>
+    document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })
+
   return (
-    <section className="relative min-h-screen flex flex-col">
-      {/* Video background */}
+    <section className="relative min-h-screen flex flex-col overflow-hidden">
+      {/* ── Video background ── */}
       <video
-        autoPlay
-        loop
-        muted
-        playsInline
+        autoPlay loop muted playsInline
         className="absolute inset-0 w-full h-full object-cover"
       >
         <source src="/assets/manim_bg.mp4" type="video/mp4" />
       </video>
 
-      {/* Layered overlays for depth */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-slate-950" />
-      <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-blue-500/8 rounded-full blur-3xl pointer-events-none" />
+      {/* ── Overlays ── */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-slate-950" />
+      {/* Ambient glow orbs */}
+      <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-500/6 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Sticky nav sits inside the hero so it overlays the video */}
+      {/* ── Sticky navbar ── */}
       <Navbar />
 
-      {/* Hero body */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-16">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 text-amber-300 px-4 py-1.5 rounded-full text-sm font-semibold mb-8 backdrop-blur-sm">
-          <Brain size={15} />
-          Neuro-Symbolic AI · SymPy + Groq Llama-3
+      {/* ── Main hero body ── */}
+      <div className="relative z-10 flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-10 px-5 pt-8 pb-12 lg:px-10 max-w-7xl mx-auto w-full">
+
+        {/* ── Avatar column ── */}
+        <div className="flex flex-col items-center w-full lg:w-[52%] flex-shrink-0">
+
+          {/* Micro eyebrow — kept minimal */}
+          <p className="text-amber-400/80 text-xs font-semibold uppercase tracking-[0.2em] mb-4">
+            {lang === 'ru' ? 'Познакомьтесь с Айдой' :
+             lang === 'kg' ? 'Айда менен таанышыңыз' :
+             'Meet Aida'}
+          </p>
+
+          {/* Avatar — the hero */}
+          <div className="w-full rounded-3xl overflow-hidden shadow-2xl shadow-black/60"
+               style={{ maxWidth: 480 }}>
+            <AvatarTutor
+              audioUrl={audioUrl}
+              wordBoundaries={wordBoundaries}
+              height={440}
+              onSpeechEnd={clear}
+            />
+          </div>
+
+          {/* Logged-in user CTAs below avatar */}
+          {user && (
+            <div className="flex flex-wrap gap-2 mt-5 justify-center">
+              {user.role === 'student' && (
+                <Button size="sm" onClick={() => navigate('/app/student')}>
+                  <GraduationCap size={15} /> {t('nav.student')}
+                </Button>
+              )}
+              {(user.role === 'teacher' || user.role === 'admin') && (
+                <Button size="sm" onClick={() => navigate('/app/teacher')}>
+                  <BookOpen size={15} /> {t('nav.teacher')}
+                </Button>
+              )}
+              <Button size="sm" variant="secondary" onClick={() => navigate('/app/dashboard')}>
+                {t('nav.dashboard')} <ArrowRight size={14} />
+              </Button>
+            </div>
+          )}
         </div>
 
-        <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-white max-w-4xl leading-[1.08] tracking-tight mb-6">
-          {t('home.hero')}
-        </h1>
+        {/* ── Chat column ── */}
+        <div className="w-full lg:w-[48%] flex flex-col" style={{ maxWidth: 440 }}>
 
-        <p className="text-lg md:text-xl text-white/60 max-w-2xl mb-12 leading-relaxed">
-          {t('home.heroSubtitle')}
-        </p>
-
-        {/* CTAs */}
-        {user ? (
-          <div className="flex flex-wrap gap-3 justify-center">
-            {user.role === 'student' && (
-              <Button size="lg" onClick={() => navigate('/app/student')}>
-                <GraduationCap size={18} />
-                {t('nav.student')}
-              </Button>
-            )}
-            {(user.role === 'teacher' || user.role === 'admin') && (
-              <>
-                <Button size="lg" onClick={() => navigate('/app/teacher')}>
-                  <BookOpen size={18} />
-                  {t('nav.teacher')}
-                </Button>
-                <Button size="lg" variant="secondary" onClick={() => navigate('/app/teacher/library')}>
-                  <FileText size={18} />
-                  {t('nav.library')}
-                </Button>
-              </>
-            )}
-            <Button size="lg" variant="secondary" onClick={() => navigate('/app/dashboard')}>
-              {t('nav.dashboard')}
-              <ArrowRight size={16} />
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => navigate('/auth')}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-400 text-white font-bold text-base rounded-2xl shadow-xl shadow-amber-500/30 transition-all active:scale-95"
-            >
-              {t('home.getStarted')}
-              <ArrowRight size={18} />
-            </button>
-            <button
-              onClick={scrollToAbout}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-medium text-base rounded-2xl backdrop-blur-sm transition-all"
-            >
-              {t('home.learnMore')}
-              <ChevronDown size={18} />
-            </button>
-          </div>
-        )}
-
-        {/* Stat strip */}
-        <div className="mt-16 flex flex-wrap gap-8 justify-center text-center">
-          {[
-            { value: '100%', label: t('home.statAccuracy') },
-            { value: '0',    label: t('home.statHallucinations') },
-            { value: '3',    label: t('home.statLanguages') },
-          ].map((s) => (
-            <div key={s.label}>
-              <p className="text-3xl font-extrabold text-amber-400">{s.value}</p>
-              <p className="text-white/40 text-xs mt-1 uppercase tracking-wider">{s.label}</p>
+          {/* Glass chat card */}
+          <div
+            className="rounded-3xl border border-white/10 shadow-2xl shadow-black/40 overflow-hidden"
+            style={{
+              background:     'rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              height: 440,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Card header */}
+            <div className="px-5 pt-5 pb-3 border-b border-white/8 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-amber-500/30">
+                  A
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm leading-none">Aida</p>
+                  <p className="text-white/40 text-[11px] mt-0.5">
+                    {lang === 'ru' ? 'AI-репетитор по математике' :
+                     lang === 'kg' ? 'AI математика мугалими' :
+                     'AI Math Tutor'}
+                  </p>
+                </div>
+                {/* Live indicator */}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-emerald-400/70 text-[10px] font-medium">Live</span>
+                </div>
+              </div>
             </div>
-          ))}
+
+            {/* GuestChat fills remaining space */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              <GuestChat
+                lang={lang}
+                onAidaReply={handleAidaReply}
+              />
+            </div>
+          </div>
+
+          {/* Below-card note */}
+          {!user && (
+            <div className="mt-3 flex items-center justify-between px-1">
+              <p className="text-white/30 text-xs">
+                {lang === 'ru' ? '3 бесплатных вопроса · Без регистрации' :
+                 lang === 'kg' ? '3 акысыз суроо · Каттоосуз' :
+                 '3 free questions · No sign-up needed'}
+              </p>
+              <button
+                onClick={() => navigate('/auth')}
+                className="text-amber-400/70 hover:text-amber-300 text-xs font-medium transition-colors flex items-center gap-1"
+              >
+                {t('home.getStarted')} <ArrowRight size={11} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Scroll cue */}
-      <div className="relative z-10 flex justify-center pb-8">
-        <button onClick={scrollToAbout} className="text-white/30 hover:text-white/70 transition-colors animate-bounce">
-          <ChevronDown size={28} />
+      {/* ── Scroll cue ── */}
+      <div className="relative z-10 flex justify-center pb-6">
+        <button
+          onClick={scrollToFeatures}
+          className="text-white/25 hover:text-white/60 transition-colors animate-bounce"
+        >
+          <ChevronDown size={26} />
         </button>
       </div>
     </section>

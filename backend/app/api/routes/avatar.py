@@ -65,6 +65,43 @@ _SYSTEM: dict[str, str] = {
 
 # ── Route ─────────────────────────────────────────────────────────────────────
 
+@router.post("/guest-explain", response_model=ExplainResponse)
+async def guest_explain(body: ExplainRequest) -> ExplainResponse:
+    """
+    Guest endpoint — no auth required.
+    Called from the landing page hero for the first 3 free messages.
+    Rate limiting is enforced on the frontend via localStorage.
+    """
+    if not settings.groq_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI tutoring is not configured on this server.",
+        )
+
+    system_prompt = _SYSTEM.get(body.language, _SYSTEM["ru"])
+
+    try:
+        client = AsyncGroq(api_key=settings.groq_api_key)
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system",  "content": system_prompt},
+                {"role": "user",    "content": body.question},
+            ],
+            max_tokens=200,
+            temperature=0.7,
+        )
+        explanation = response.choices[0].message.content or ""
+    except Exception as exc:
+        logger.exception("Groq guest explain error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI service error: {exc}",
+        )
+
+    return ExplainResponse(explanation=explanation.strip(), language=body.language)
+
+
 @router.post("/explain", response_model=ExplainResponse)
 async def explain(
     body: ExplainRequest,

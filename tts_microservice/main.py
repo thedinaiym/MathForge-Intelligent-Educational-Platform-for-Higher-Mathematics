@@ -121,6 +121,13 @@ app.add_middleware(
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.get("/", tags=["meta"], include_in_schema=False)
+async def root():
+    """Root — redirect browsers to the API docs."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
+
+
 @app.get("/health", tags=["meta"])
 async def health() -> dict:
     """Railway health-check probe."""

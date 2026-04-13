@@ -12,8 +12,7 @@ FROM python:3.11-slim-bookworm
 # NOTE: texlive-fonts-extra (~800 MB) is intentionally OMITTED — it contains
 # decorative/specialty fonts not required for math+Cyrillic worksheets.
 # amsfonts/amssymb are provided by texlive-fonts-recommended.
-RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
+RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends \
         texlive-latex-base \
         texlive-fonts-recommended \
