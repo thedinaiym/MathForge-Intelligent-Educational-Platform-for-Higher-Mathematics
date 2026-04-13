@@ -28,7 +28,7 @@ import jinja2
 
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "tex"
 
-# ИСПРАВЛЕНИЕ: Кастомные теги для безопасной работы с LaTeX
+# ИСПРАВЛЕНИЕ: Кастомные теги Jinja + удалены line_statement префиксы
 _jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
     block_start_string=r'\BLOCK{',
@@ -37,8 +37,6 @@ _jinja_env = jinja2.Environment(
     variable_end_string='}',
     comment_start_string=r'\#{',
     comment_end_string='}',
-    line_statement_prefix='%%',
-    line_comment_prefix='%#',
     autoescape=False,   # content is LaTeX, not HTML — no escaping wanted
     trim_blocks=True,   # strip the newline after a block tag
     lstrip_blocks=True, # strip leading whitespace before a block tag
@@ -118,19 +116,6 @@ async def compile_study_guide_to_pdf(
 ) -> bytes:
     """
     Render and compile a student self-practice study guide.
-
-    Layout:
-      Page 1+: Problems only — no answers visible; 2.8 cm work space per problem.
-      Last page: Answer key with condition + answer for each problem.
-
-    Args:
-        title:          Localised title (e.g. "Calculus — Medium").
-        tasks:          List of dicts with keys: question_text, condition_latex, answer_latex.
-        difficulty_label: Human-readable difficulty string for the cover.
-        locale:          "en" | "ru" | "kg" — controls instruction/label text.
-
-    Returns:
-        Raw PDF bytes.
     """
     _LABELS: dict[str, dict] = {
         "en": {
@@ -199,19 +184,6 @@ async def compile_latex_to_pdf(
 ) -> bytes:
     """
     Render and compile a multi-variant worksheet with solutions appendix to PDF.
-
-    Args:
-        title:          Worksheet title (localised, e.g. "Calculus — Medium").
-        variants_tasks: One list per variant; each inner dict has keys:
-                          question_text   — localised prompt
-                          condition_latex — SymPy-generated LaTeX equation
-                          answer_latex    — SymPy-generated LaTeX answer
-
-    Returns:
-        Raw PDF bytes ready to be sent as an HTTP response.
-
-    Raises:
-        RuntimeError: If pdflatex is missing, times out, or fails to compile.
     """
     variants = []
     solutions = []   # one entry per variant: list of {condition, answer}
