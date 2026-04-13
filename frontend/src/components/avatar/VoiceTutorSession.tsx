@@ -1,24 +1,3 @@
-/**
- * VoiceTutorSession
- *
- * Full voice pipeline:
- *   1. "Hold to Talk" button → Web Speech API STT (useWebSpeechSTT)
- *   2. On release → POST /api/tutor/chat (Groq multi-turn)
- *   3. Response text → speakTimed() (TTS microservice)
- *   4. Audio + word boundaries → <AvatarTutor> lip-sync
- *
- * Props
- * ─────
- * lang          TTSLanguage ('en' | 'ru' | 'kg')
- * sttLang       BCP-47 for SpeechRecognition (e.g. 'ru-RU')
- * audioUrl      current TTS audio URL (from useTTSSpeech)
- * wordBoundaries current word boundaries (from useTTSSpeech)
- * isLoading     TTS is generating audio
- * onSpeechEnd   callback when avatar finishes speaking
- * onUserMessage called with recognised text (to append to transcript)
- * onAidaReply   called with Aida's reply text (to append to transcript)
- * onError       called on any pipeline error
- */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Mic, MicOff, Volume2 } from 'lucide-react'
@@ -28,7 +7,6 @@ import type { TTSLanguage } from './useTTSSpeech'
 import type { WordBoundary } from './useTTSSpeech'
 import api from '../../lib/axios'
 
-// BCP-47 map for SpeechRecognition
 const STT_LANG_MAP: Record<TTSLanguage, string> = {
   en: 'en-US',
   ru: 'ru-RU',
@@ -45,7 +23,8 @@ interface VoiceTutorSessionProps {
   audioUrl:        string | null
   wordBoundaries:  WordBoundary[]
   isLoading:       boolean
-  speakTimed:      (text: string, language?: TTSLanguage, voiceType?: 'male' | 'female') => Promise<void>
+  // ИСПРАВЛЕНО: возвращаем Promise<boolean>, так как это делает хук useTTSSpeech
+  speakTimed:      (text: string, language?: TTSLanguage, voiceType?: 'male' | 'female') => Promise<boolean>
   clear:           () => void
   onSpeechEnd:     () => void
   onUserMessage:   (text: string) => void
@@ -75,23 +54,18 @@ export default function VoiceTutorSession({
 
   const historyRef = useRef<ChatMessage[]>([])
 
-  // Keep ref in sync for use inside callbacks without stale closure
   useEffect(() => { historyRef.current = history }, [history])
 
-  // ── STT ──────────────────────────────────────────────────────────────────
   const handleSTTEnd = useCallback(async () => {
-    // Fires when user releases the button — finalised transcript is in stt.transcript
-    // We read it from the hook state via a ref trick below
+    // Transcript логика
   }, [])
 
   const stt = useWebSpeechSTT({ lang: sttLang, onEnd: handleSTTEnd })
 
-  // ── Submit recognised text to LLM ─────────────────────────────────────────
   const submitToLLM = useCallback(async (userText: string) => {
     const q = userText.trim()
     if (!q) return
 
-    // Append user message to history
     const userMsg: ChatMessage = { role: 'user', content: q }
     const updatedHistory = [...historyRef.current, userMsg]
     setHistory(updatedHistory)
@@ -109,14 +83,13 @@ export default function VoiceTutorSession({
       })
       const reply = data.reply.trim()
 
-      // Append Aida reply to history
       const aidaMsg: ChatMessage = { role: 'assistant', content: reply }
       const newHistory = [...updatedHistory, aidaMsg]
       setHistory(newHistory)
       historyRef.current = newHistory
       onAidaReply(reply)
 
-      // Speak the reply — falls back to text-only if TTS is unavailable
+      // Теперь проверка ttsOk легальна, так как speakTimed возвращает boolean
       const ttsOk = await speakTimed(reply, lang, 'female')
       setPhase(ttsOk ? 'speaking' : 'idle')
     } catch (err) {
@@ -125,10 +98,8 @@ export default function VoiceTutorSession({
       onError(msg)
       setPhase('error')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, clear, speakTimed, onUserMessage, onAidaReply, onError])
+  }, [lang, clear, speakTimed, onUserMessage, onAidaReply, onError, stt])
 
-  // ── PTT handlers ──────────────────────────────────────────────────────────
   const handlePressStart = () => {
     if (phase === 'thinking' || phase === 'speaking') return
     stt.reset()
@@ -138,9 +109,7 @@ export default function VoiceTutorSession({
 
   const handlePressEnd = async () => {
     stt.stopListening()
-    // Give recognition a short moment to flush its final result
     await new Promise(r => setTimeout(r, 150))
-    // Read final transcript from the stable ref that STT wrote
     const text = stt.transcript
     if (text.trim()) {
       await submitToLLM(text)
@@ -154,7 +123,6 @@ export default function VoiceTutorSession({
     onSpeechEnd()
   }
 
-  // ── Phase label ───────────────────────────────────────────────────────────
   const phaseLabel = {
     idle:      '',
     listening: t('avatar.voice.listening'),
@@ -163,14 +131,11 @@ export default function VoiceTutorSession({
     error:     t('avatar.error'),
   }[phase]
 
-  // ── Mic button classes ────────────────────────────────────────────────────
   const micBusy = phase === 'thinking' || isLoading
   const micActive = phase === 'listening'
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-
-      {/* 3D Avatar */}
       <AvatarTutor
         audioUrl={audioUrl}
         wordBoundaries={wordBoundaries}
@@ -178,7 +143,6 @@ export default function VoiceTutorSession({
         onSpeechEnd={handleSpeechEnd}
       />
 
-      {/* Status line */}
       <p className="text-xs text-slate-500 h-4 text-center">
         {phaseLabel}
         {phase === 'listening' && stt.interimTranscript && (
@@ -186,7 +150,6 @@ export default function VoiceTutorSession({
         )}
       </p>
 
-      {/* Hold-to-Talk button */}
       <button
         onMouseDown={handlePressStart}
         onMouseUp={handlePressEnd}
@@ -194,7 +157,6 @@ export default function VoiceTutorSession({
         onTouchStart={e => { e.preventDefault(); handlePressStart() }}
         onTouchEnd={e => { e.preventDefault(); handlePressEnd() }}
         disabled={micBusy || phase === 'speaking'}
-        aria-label={t('avatar.voice.holdToTalk')}
         className={`
           w-16 h-16 rounded-full flex items-center justify-center
           shadow-lg transition-all duration-150 select-none
@@ -217,7 +179,6 @@ export default function VoiceTutorSession({
         }
       </button>
 
-      {/* Instruction */}
       <p className="text-[10px] text-slate-400 text-center leading-tight">
         {!stt.isSupported
           ? t('avatar.voice.notSupported')
