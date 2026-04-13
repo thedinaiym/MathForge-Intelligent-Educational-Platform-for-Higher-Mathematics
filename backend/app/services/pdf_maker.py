@@ -28,8 +28,17 @@ import jinja2
 
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "tex"
 
+# ИСПРАВЛЕНИЕ: Кастомные теги для безопасной работы с LaTeX
 _jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
+    block_start_string=r'\BLOCK{',
+    block_end_string='}',
+    variable_start_string=r'\VAR{',
+    variable_end_string='}',
+    comment_start_string=r'\#{',
+    comment_end_string='}',
+    line_statement_prefix='%%',
+    line_comment_prefix='%#',
     autoescape=False,   # content is LaTeX, not HTML — no escaping wanted
     trim_blocks=True,   # strip the newline after a block tag
     lstrip_blocks=True, # strip leading whitespace before a block tag
@@ -115,8 +124,8 @@ async def compile_study_guide_to_pdf(
       Last page: Answer key with condition + answer for each problem.
 
     Args:
-        title:           Localised title (e.g. "Calculus — Medium").
-        tasks:           List of dicts with keys: question_text, condition_latex, answer_latex.
+        title:          Localised title (e.g. "Calculus — Medium").
+        tasks:          List of dicts with keys: question_text, condition_latex, answer_latex.
         difficulty_label: Human-readable difficulty string for the cover.
         locale:          "en" | "ru" | "kg" — controls instruction/label text.
 
@@ -170,10 +179,10 @@ async def compile_study_guide_to_pdf(
     ]
 
     context = {
-        "title":           title,
-        "count":           len(task_entries),
+        "title":          title,
+        "count":          len(task_entries),
         "difficulty_label": difficulty_label,
-        "tasks":           task_entries,
+        "tasks":          task_entries,
         **lbl,
     }
 
