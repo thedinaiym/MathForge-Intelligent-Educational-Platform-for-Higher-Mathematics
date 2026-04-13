@@ -1,95 +1,61 @@
 \documentclass[12pt,a4paper]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[T2A]{fontenc}
-\usepackage[russian,english]{babel}
-\usepackage{amsmath,amssymb}
-\usepackage{geometry}
-\usepackage{enumitem}
-\usepackage{needspace}
-\usepackage{fancyhdr}
-\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
 
+% Поддержка русского, кыргызского и английского языков
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian,english]{babel}
+
+% Математические пакеты
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+
+% Настройка полей
+\geometry{top=2cm, bottom=2cm, left=2cm, right=2cm}
+
+% Настройка колонтитулов
+\usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
-\rhead{\small\textit{{{ title }}}}
-\lhead{\small\textit{MathForge Study Guide}}
-\rfoot{\small\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
+\lhead{\textbf{MathForge}}
+\rhead{\small\textit{\VAR{title}}}
+\cfoot{\thepage}
 
 \begin{document}
 
-%% ══════════════════════════════════════════════════════════════
-%%  COVER / TITLE
-%% ══════════════════════════════════════════════════════════════
-
+% --- ЗАГОЛОВОК ---
 \begin{center}
-    {\LARGE\bfseries {{ title }}} \\[6pt]
-    {\large MathForge · Self-Practice Guide} \\[4pt]
-    {\normalsize {{ count }} {{ task_word }} · {{ difficulty_label }}}
+    \LARGE \textbf{\VAR{title}} \\[0.5cm]
+    \normalsize \VAR{count} \VAR{task_word} $\cdot$ \VAR{difficulty_label}
 \end{center}
 
-\vspace{0.3cm}
-\noindent\rule{\linewidth}{0.6pt}
-\vspace{0.3cm}
+\vspace{0.5cm}
+\noindent \textit{\VAR{instructions}}
+\vspace{1cm}
 
-\noindent
-{\small\itshape
-{{ instructions }}
-}
-
-\vspace{0.8cm}
-
-%% ══════════════════════════════════════════════════════════════
-%%  PROBLEMS  (no answers visible here)
-%% ══════════════════════════════════════════════════════════════
-
-\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=0pt]
-{% for task in tasks %}
-    \needspace{7\baselineskip}
-    \item
-    {% if task.title %}
-    {\small {{ task.title }}}
-    {% endif %}
-    \[
-        {{ task.condition_latex }}
-    \]
-    \vspace{2.8cm}   %% work space for student
-    \noindent\rule{0.4\linewidth}{0.3pt}
-    \vspace{0.4cm}
-
-{% endfor %}
+% --- БЛОК ЗАДАЧ ---
+\begin{enumerate}
+\BLOCK{for task in tasks}
+    \item \textbf{\VAR{task.title}} \\[0.2cm]
+    $ \displaystyle \VAR{task.condition_latex} $
+    \vspace{2.8cm} % Место для решения задачи студентом
+\BLOCK{endfor}
 \end{enumerate}
 
-%% ══════════════════════════════════════════════════════════════
-%%  ANSWER KEY  — always starts on a NEW page
-%%  (fold or tear off before giving the sheet to a peer)
-%% ══════════════════════════════════════════════════════════════
-
+% --- КЛЮЧИ ОТВЕТОВ (НА НОВОЙ СТРАНИЦЕ) ---
 \newpage
-\thispagestyle{fancy}
-
 \begin{center}
-    {\Large\bfseries {{ answers_title }}} \\[4pt]
-    {\normalsize\bfseries {{ title }}}
+    \LARGE \textbf{\VAR{answers_title}}
 \end{center}
-
-\vspace{0.5cm}
-\noindent\rule{\linewidth}{0.6pt}
 \vspace{0.5cm}
 
-\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=10pt]
-{% for task in tasks %}
-    \needspace{4\baselineskip}
+\begin{enumerate}
+\BLOCK{for task in tasks}
     \item
-    {\small\textbf{{{ condition_label }}:}}
-    \[
-        {{ task.condition_latex }}
-    \]
-    {\small\textbf{{{ answer_label }}:}}
-    \[
-        {{ task.answer_latex }}
-    \]
-{% endfor %}
+    \textbf{\VAR{condition_label}:} $ \displaystyle \VAR{task.condition_latex} $ \\[0.2cm]
+    \textbf{\VAR{answer_label}:} $ \displaystyle \VAR{task.answer_latex} $
+    \vspace{0.5cm}
+\BLOCK{endfor}
 \end{enumerate}
 
 \end{document}
