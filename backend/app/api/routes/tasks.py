@@ -6,6 +6,7 @@ POST /api/tasks/generate      — generate task list as JSON (LibraryPage inline
 POST /api/tasks/generate/pdf  — generate task list and compile to PDF (TeacherGenerator download)
 """
 import asyncio
+import logging
 import uuid
 from datetime import date
 from pathlib import Path
@@ -13,6 +14,9 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,8 +109,15 @@ async def _generate_tasks(
     elif tid:
         filters.append(TaskTemplate.id == tid)
 
-    result = await db.execute(select(TaskTemplate).where(*filters))
-    templates = result.scalars().all()
+    try:
+        result = await db.execute(select(TaskTemplate).where(*filters))
+        templates = result.scalars().all()
+    except SQLAlchemyError as exc:
+        logger.error("DB error fetching templates: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection error. Please try again in a moment.",
+        ) from exc
 
     if not templates:
         raise HTTPException(
@@ -171,8 +182,15 @@ async def list_categories(
     Return all categories with names resolved for the request locale.
     Header: Accept-Language: ru | en | kg
     """
-    result = await db.execute(select(Category))
-    categories = result.scalars().all()
+    try:
+        result = await db.execute(select(Category))
+        categories = result.scalars().all()
+    except SQLAlchemyError as exc:
+        logger.error("DB error fetching categories: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable. Please refresh the page.",
+        ) from exc
 
     return [
         CategoryResponse(id=cat.id, name=cat.get_name(locale))

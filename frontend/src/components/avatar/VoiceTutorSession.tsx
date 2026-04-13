@@ -116,9 +116,9 @@ export default function VoiceTutorSession({
       historyRef.current = newHistory
       onAidaReply(reply)
 
-      // Speak the reply
-      await speakTimed(reply, lang, 'female')
-      setPhase('speaking')
+      // Speak the reply — falls back to text-only if TTS is unavailable
+      const ttsOk = await speakTimed(reply, lang, 'female')
+      setPhase(ttsOk ? 'speaking' : 'idle')
     } catch (err) {
       console.error('[VoiceTutorSession]', err)
       const msg = err instanceof Error ? err.message : 'Unknown error'

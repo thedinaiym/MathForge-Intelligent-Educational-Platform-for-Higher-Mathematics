@@ -6,14 +6,20 @@
  *   speak()      → POST /api/tts/generate         → MP3 blob URL (simple)
  *   speakTimed() → POST /api/tts/generate-with-timing → MP3 blob URL + word boundaries
  *
+ * Both functions return `true` if audio is ready to play, `false` if TTS
+ * failed or timed out.  Callers MUST check the return value to decide
+ * whether to enter a 'speaking' phase — otherwise the UI hangs forever
+ * when TTS is unavailable.
+ *
  * Usage:
- *   const { audioUrl, wordBoundaries, speak, speakTimed, isSpeaking, clear } = useTTSSpeech()
- *   await speakTimed('Привет, я ваш репетитор!', 'ru', 'female')
- *   <AvatarTutor audioUrl={audioUrl} wordBoundaries={wordBoundaries} onSpeechEnd={clear} />
+ *   const { audioUrl, wordBoundaries, speakTimed, clear } = useTTSSpeech()
+ *   const ok = await speakTimed('Привет!', 'ru', 'female')
+ *   setPhase(ok ? 'speaking' : 'idle')
  */
 import { useCallback, useRef, useState } from 'react'
 
 const TTS_BASE_URL = import.meta.env.VITE_TTS_URL ?? 'http://localhost:8001'
+const TTS_TIMEOUT_MS = 10_000   // 10 s — abort and fall back to text-only
 
 export type TTSLanguage  = 'kg' | 'ru' | 'en'
 export type TTSVoiceType = 'male' | 'female'
@@ -29,8 +35,10 @@ interface TTSSpeechHook {
   wordBoundaries:  WordBoundary[]
   isLoading:       boolean
   isSpeaking:      boolean
-  speak:      (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<void>
-  speakTimed: (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<void>
+  /** Returns true if audio is ready, false if TTS failed/timed out. */
+  speak:      (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<boolean>
+  /** Returns true if audio is ready, false if TTS failed/timed out. */
+  speakTimed: (text: string, language?: TTSLanguage, voiceType?: TTSVoiceType) => Promise<boolean>
   clear: () => void
   error: string | null
 }
@@ -69,15 +77,20 @@ export function useTTSSpeech(): TTSSpeechHook {
     text:      string,
     language:  TTSLanguage  = 'ru',
     voiceType: TTSVoiceType = 'female',
-  ) => {
-    if (!text.trim()) return
+  ): Promise<boolean> => {
+    if (!text.trim()) return false
     _reset()
     setIsLoading(true)
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS)
+
     try {
       const res = await fetch(`${TTS_BASE_URL}/api/tts/generate`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ text, language, voice_type: voiceType }),
+        signal:  controller.signal,
       })
       if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text().catch(() => res.statusText)}`)
       const blob = await res.blob()
@@ -85,11 +98,14 @@ export function useTTSSpeech(): TTSSpeechHook {
       prevUrlRef.current = url
       setAudioUrl(url)
       setIsSpeaking(true)
+      return true
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'TTS request failed'
-      console.error('[useTTSSpeech]', msg)
+      console.warn('[useTTSSpeech] TTS unavailable — showing text only:', msg)
       setError(msg)
+      return false
     } finally {
+      clearTimeout(timer)
       setIsLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,15 +116,20 @@ export function useTTSSpeech(): TTSSpeechHook {
     text:      string,
     language:  TTSLanguage  = 'ru',
     voiceType: TTSVoiceType = 'female',
-  ) => {
-    if (!text.trim()) return
+  ): Promise<boolean> => {
+    if (!text.trim()) return false
     _reset()
     setIsLoading(true)
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS)
+
     try {
       const res = await fetch(`${TTS_BASE_URL}/api/tts/generate-with-timing`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ text, language, voice_type: voiceType }),
+        signal:  controller.signal,
       })
       if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text().catch(() => res.statusText)}`)
 
@@ -126,11 +147,14 @@ export function useTTSSpeech(): TTSSpeechHook {
       setAudioUrl(url)
       setWordBoundaries(json.word_boundaries ?? [])
       setIsSpeaking(true)
+      return true
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'TTS request failed'
-      console.error('[useTTSSpeech]', msg)
+      console.warn('[useTTSSpeech] TTS unavailable — showing text only:', msg)
       setError(msg)
+      return false
     } finally {
+      clearTimeout(timer)
       setIsLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

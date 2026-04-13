@@ -60,5 +60,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session
+        except Exception:
+            # Roll back any partial transaction before returning the connection
+            # to the pool. Without this, the next request that gets this
+            # connection may see leftover state from a failed transaction.
+            await session.rollback()
+            raise
         finally:
             await session.close()

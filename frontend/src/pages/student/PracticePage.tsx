@@ -301,11 +301,21 @@ export default function PracticePage() {
       return data
     },
     onSuccess: (data) => {
-      setTasks(data.tasks)
-      setResults(data.tasks.map(() => ({ status: 'pending' })))
+      const tasks = data.tasks ?? []
+      if (tasks.length === 0) {
+        // Treat empty task list as a generation error — stay on setup screen
+        console.error('[PracticePage] generate/practice returned 0 tasks')
+        return
+      }
+      setTasks(tasks)
+      setResults(tasks.map(() => ({ status: 'pending' })))
       setPhase('session')
       setSwitchCount(0)
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      console.error('[PracticePage] generate/practice failed:', detail ?? err)
     },
   })
 
@@ -468,11 +478,16 @@ export default function PracticePage() {
           </div>
         )}
 
-        {/* Generate */}
+        {/* Generate — error states */}
         {generateMutation.isError && (
           <p className="text-sm text-red-500 mb-3">
             {(generateMutation.error as any)?.response?.data?.detail ??
               t('practice.generateError')}
+          </p>
+        )}
+        {generateMutation.isSuccess && tasks.length === 0 && (
+          <p className="text-sm text-amber-600 mb-3">
+            {t('practice.noTasks')}
           </p>
         )}
         <button

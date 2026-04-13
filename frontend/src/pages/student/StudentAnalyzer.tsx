@@ -112,19 +112,27 @@ function TopicTaskGenerator({
     },
   })
 
-  const generateMutation = useMutation<GeneratedTask, Error, { catId: string; diff: Difficulty }>({
+  const generateMutation = useMutation<GeneratedTask | null, Error, { catId: string; diff: Difficulty }>({
     mutationFn: async ({ catId, diff }) => {
       const { data } = await api.post<{ tasks: GeneratedTask[] }>('/tasks/generate/practice', {
         category_id: catId,
         difficulty: diff,
         count: 1,
       })
-      return data.tasks[0]
+      return data.tasks?.[0] ?? null
     },
     onSuccess: (task) => {
+      if (!task) {
+        console.error('[StudentAnalyzer] generate/practice returned 0 tasks')
+        return
+      }
       setActiveTask(task)
       onTaskGenerated(task)
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      console.error('[StudentAnalyzer] generate/practice failed:', detail ?? err)
     },
   })
 

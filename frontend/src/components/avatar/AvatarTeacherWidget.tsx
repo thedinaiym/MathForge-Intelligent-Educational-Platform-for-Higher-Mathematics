@@ -94,8 +94,8 @@ export default function AvatarTeacherWidget() {
       })
 
       setMessages(prev => [...prev, { role: 'aida', content: data.explanation }])
-      await speakTimed(data.explanation, lang, 'female')
-      setPhase('speaking')
+      const ttsOk = await speakTimed(data.explanation, lang, 'female')
+      setPhase(ttsOk ? 'speaking' : 'idle')
     } catch (err) {
       console.error('[AvatarTeacherWidget]', err)
       const errMsg = t('avatar.error')
