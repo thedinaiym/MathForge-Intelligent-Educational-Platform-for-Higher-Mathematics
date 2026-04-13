@@ -184,7 +184,13 @@ async def _run_pipeline(
     F. student_tracking — upsert mastery for the given category (if supplied).
     """
     # ── D. SymPy Arbitrator ───────────────────────────────────────────────
-    validation = Arbitrator.validate_steps(steps)
+    try:
+        validation = Arbitrator.validate_steps(steps)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid math syntax — could not validate steps. Detail: {exc}",
+        ) from exc
     is_correct: bool = validation["is_correct"]
 
     # ── F. student_tracking upsert (fire regardless of correct/incorrect) ─

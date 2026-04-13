@@ -27,7 +27,7 @@ import { useWebSpeechSTT } from './useWebSpeechSTT'
 import type { TTSLanguage } from './useTTSSpeech'
 import type { WordBoundary } from './useTTSSpeech'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 
 // BCP-47 map for SpeechRecognition
 const STT_LANG_MAP: Record<TTSLanguage, string> = {
@@ -105,7 +105,7 @@ export default function VoiceTutorSession({
 
     try {
       const token = localStorage.getItem('access_token') ?? ''
-      const res = await fetch(`${API_BASE}/api/tutor/chat`, {
+      const res = await fetch(`${API_BASE}/tutor/chat`, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',

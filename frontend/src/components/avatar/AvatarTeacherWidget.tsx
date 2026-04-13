@@ -21,7 +21,7 @@ import AvatarTutor from './AvatarTutor'
 import VoiceTutorSession from './VoiceTutorSession'
 import { useTTSSpeech, type TTSLanguage } from './useTTSSpeech'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 
 // Map i18next language codes → TTS language codes
 const LANG_MAP: Record<string, TTSLanguage> = {
@@ -90,7 +90,7 @@ export default function AvatarTeacherWidget() {
 
     try {
       const token = localStorage.getItem('access_token') ?? ''
-      const res   = await fetch(`${API_BASE}/api/avatar/explain`, {
+      const res   = await fetch(`${API_BASE}/avatar/explain`, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',

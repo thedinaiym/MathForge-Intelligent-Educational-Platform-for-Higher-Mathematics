@@ -337,10 +337,19 @@ export default function PracticePage() {
       })
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] })
-    } catch {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } }
+      const status = axiosErr?.response?.status
+      const detail = axiosErr?.response?.data?.detail
+      console.error('[checkTask] HTTP', status ?? 'network error', detail ?? err)
       setResults((prev) => {
         const next = [...prev]
-        next[index] = { status: 'wrong', hint: t('practice.checkFailed') }
+        next[index] = {
+          status: 'wrong',
+          hint: detail
+            ? `${t('practice.checkFailed')}: ${detail}`
+            : t('practice.checkFailed'),
+        }
         return next
       })
     }

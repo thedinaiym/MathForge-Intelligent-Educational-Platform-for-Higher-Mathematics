@@ -5,7 +5,8 @@
       "Bash(git commit:*)",
       "Bash(rm -rf node_modules/.vite)",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(grep -v \"//.*api/\")"
     ]
   }
 }

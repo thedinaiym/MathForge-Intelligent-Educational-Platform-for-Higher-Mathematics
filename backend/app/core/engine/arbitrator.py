@@ -147,7 +147,18 @@ class Arbitrator:
                     "parse_error": str(exc),
                 }
 
-            diff = sp.simplify(expr_a - expr_b)
+            try:
+                diff = sp.simplify(expr_a - expr_b)
+            except Exception as exc:
+                # SymPy internal error (RecursionError, NotImplementedError, etc.)
+                return {
+                    "is_correct": False,
+                    "error_index": i + 1,
+                    "step_before": step_a,
+                    "step_with_error": step_b,
+                    "valid_up_to": i,
+                    "parse_error": f"Simplification failed: {exc}",
+                }
 
             if diff != 0:
                 # Secondary check: multiplicative equivalence.

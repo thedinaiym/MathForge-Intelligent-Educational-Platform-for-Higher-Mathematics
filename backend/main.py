@@ -75,7 +75,12 @@ async def startup():
     2. Upsert seed data — always runs, safe to repeat.
     3. Index templates into Qdrant for RAG search.
     """
-    # ── Step 0: schema migration ──────────────────────────────────────────
+    # ── Step 0: environment check ─────────────────────────────────────────
+    from app.core.config import settings as _settings
+    print(f"🤖 Groq API initialized: {bool(_settings.groq_api_key)}")
+    print(f"🔍 Qdrant endpoint configured: {bool(_settings.qdrant_url)}")
+
+    # ── Step 1: schema migration ──────────────────────────────────────────
     try:
         await _migrate_stale_schema()
     except Exception as exc:

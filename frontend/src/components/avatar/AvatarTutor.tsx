@@ -37,7 +37,7 @@ import {
   useState,
 } from 'react'
 import { Canvas, useFrame, type RootState } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF, type GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import {
@@ -79,10 +79,12 @@ export interface AvatarTutorProps {
 
 const VRM_PATH = '/tutor.vrm'
 
-// Camera frames the head-to-chest area of a standard VRM avatar.
-// VRM origin is at feet; head is at ~1.55 m.
-const CAM_POSITION = new THREE.Vector3(0, 1.45, 2.1)
-const CAM_TARGET   = new THREE.Vector3(0, 1.45, 0)
+// Camera frames the avatar from chest up.
+// VRM origin is at feet; head centre is at ~1.55 m.
+// Position: slightly above head (1.6 m), 2 m back.
+// Target:   head centre (1.5 m) — OrbitControls applies this as lookAt.
+const CAM_POSITION = new THREE.Vector3(0, 1.6, 2)
+const CAM_TARGET   = new THREE.Vector3(0, 1.5, 0)
 
 // ── Root exported component ───────────────────────────────────────────────────
 
@@ -128,6 +130,14 @@ export default function AvatarTutor({
       >
         {/* ── Lighting ── */}
         <SceneLighting />
+
+        {/* ── Camera target — points at head centre, all interaction disabled ── */}
+        <OrbitControls
+          target={CAM_TARGET.toArray() as [number, number, number]}
+          enableRotate={false}
+          enableZoom={false}
+          enablePan={false}
+        />
 
         {/* ── VRM Avatar with lip-sync ── */}
         <Suspense fallback={<LoadingSpinner />}>

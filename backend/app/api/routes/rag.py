@@ -65,6 +65,12 @@ async def search_similar_tasks(
 
     Returns ranked results with a cosine similarity `score` (0–1, higher = closer).
     """
+    if rag_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис поиска временно недоступен. Попробуйте позже.",
+        )
+
     if difficulty and difficulty not in {"easy", "medium", "hard"}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -102,6 +108,12 @@ async def index_templates(
 
     Restricted to admin and teacher roles.
     """
+    if rag_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис индексации временно недоступен. Попробуйте позже.",
+        )
+
     result = await db.execute(
         select(TaskTemplate).where(TaskTemplate.is_active.is_(True))
     )
@@ -111,6 +123,12 @@ async def index_templates(
         return IndexResponse(
             indexed=0,
             message="Нет активных шаблонов для индексации.",
+        )
+
+    if rag_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис индексации недоступен — Qdrant не инициализирован.",
         )
 
     try:

@@ -89,8 +89,10 @@ class RAGService:
             )
 
         self._store: QdrantVectorStore | None = None
+        self._available: bool = False
         try:
             self._ensure_collection()
+            self._available = True
         except Exception as exc:
             # Qdrant might be starting up — collection will be created on first index.
             logger.warning("RAGService: collection bootstrap skipped: %s", exc)
@@ -113,6 +115,9 @@ class RAGService:
         (Re-)index a list of TaskTemplate ORM records into Qdrant.
         Returns the number of templates indexed.
         """
+        if not self._available:
+            logger.warning("RAGService.index_templates called but service is unavailable")
+            return 0
         if not templates:
             return 0
 
@@ -166,9 +171,16 @@ class RAGService:
                 must=[FieldCondition(key="metadata.difficulty", match=MatchValue(value=difficulty))]
             )
 
-        results = await self._store.asimilarity_search_with_score(
-            query, k=k, **filter_kwargs
-        )
+        try:
+            results = await self._store.asimilarity_search_with_score(
+                query, k=k, **filter_kwargs
+            )
+        except Exception as exc:
+            logger.error(
+                "RAGService: Qdrant query failed (%s) — returning empty results",
+                exc,
+            )
+            return []
 
         return [
             {
