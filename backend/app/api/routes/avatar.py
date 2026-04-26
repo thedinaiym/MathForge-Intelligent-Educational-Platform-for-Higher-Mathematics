@@ -18,7 +18,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from groq import AsyncGroq
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.dependencies import get_current_user
 from app.core.config import settings
@@ -30,8 +30,25 @@ router = APIRouter()
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class ExplainRequest(BaseModel):
-    question: str = Field(..., min_length=2, max_length=1_000)
+    question: str = Field(..., min_length=1, max_length=1_000)
     language: Literal["en", "ru", "kg"] = "ru"
+
+    @field_validator("question")
+    @classmethod
+    def strip_question(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("question must not be blank")
+        return v
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def normalise_language(cls, v: object) -> object:
+        """Accept BCP-47 variants (ky, ky-KG, ru-RU, en-US) and map to our codes."""
+        if isinstance(v, str):
+            code = v.lower().split("-")[0]
+            return {"ky": "kg"}.get(code, code)
+        return v
 
 
 class ExplainResponse(BaseModel):
