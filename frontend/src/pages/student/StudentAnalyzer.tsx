@@ -322,9 +322,7 @@ export default function StudentAnalyzer() {
     mutationFn: async () => {
       const form = new FormData()
       form.append('image', imageFile as File)
-      const { data } = await api.post<AnalysisResult>('/study/analyze-image', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const { data } = await api.post<AnalysisResult>('/study/analyze-image', form)
       return data
     },
     onSuccess: (data) => {

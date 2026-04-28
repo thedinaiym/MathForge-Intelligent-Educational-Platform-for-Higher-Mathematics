@@ -68,10 +68,11 @@ TEMPLATES = [
         "template_json": {
             "topic": "linear_equation",
             "sympy_expr": "A*x + B",
+            "equation_rhs": "0",
             "ranges": {"A": [1, 9], "B": [-20, 20]},
             "constraints": ["A != 0"],
             "texts": {
-                "en": "Solve: {A}x + {B} = 0",
+                "en": "Solve for x: {A}x + {B} = 0",
                 "ru": "Решите уравнение: {A}x + {B} = 0",
                 "kg": "Теңдемени чечиңиз: {A}x + {B} = 0",
             },
@@ -158,10 +159,11 @@ TEMPLATES = [
         "template_json": {
             "topic": "quadratic_equation",
             "sympy_expr": "A*x**2 + B*x + C",
+            "equation_rhs": "0",
             "ranges": {"A": [1, 5], "B": [-10, 10], "C": [-20, 20]},
             "constraints": ["B**2 - 4*A*C >= 0"],
             "texts": {
-                "en": "Solve: {A}x² + {B}x + {C} = 0",
+                "en": "Solve for x: {A}x² + {B}x + {C} = 0",
                 "ru": "Решите уравнение: {A}x² + {B}x + {C} = 0",
                 "kg": "Теңдемени чечиңиз: {A}x² + {B}x + {C} = 0",
             },
@@ -202,12 +204,13 @@ TEMPLATES = [
         "template_json": {
             "topic": "critical_points",
             "sympy_expr": "3*A*x**2 - 2*B*x",
+            "equation_rhs": "0",
             "ranges": {"A": [1, 3], "B": [2, 8]},
             "constraints": ["A != 0"],
             "texts": {
-                "en": "Find the critical points of $f(x) = {A}x^3 - {B}x^2$",
-                "ru": "Найдите критические точки $f(x) = {A}x^3 - {B}x^2$",
-                "kg": "$f(x) = {A}x^3 - {B}x^2$ критикалык чекиттерин табыңыз",
+                "en": "Find the critical points of $f(x) = {A}x^3 - {B}x^2$ (set $f'(x) = 0$)",
+                "ru": "Найдите критические точки $f(x) = {A}x^3 - {B}x^2$ (приравняйте $f'(x) = 0$)",
+                "kg": "$f(x) = {A}x^3 - {B}x^2$ критикалык чекиттерин табыңыз ($f'(x) = 0$)",
             },
         },
         "is_active": True,
@@ -248,12 +251,13 @@ TEMPLATES = [
         "template_json": {
             "topic": "biquadratic_equation",
             "sympy_expr": "A*x**4 - B*x**2",
+            "equation_rhs": "0",
             "ranges": {"A": [1, 4], "B": [1, 16]},
             "constraints": ["B > 0"],
             "texts": {
-                "en": "Solve: ${A}x^4 = {B}x^2$",
-                "ru": "Решите уравнение: ${A}x^4 = {B}x^2$",
-                "kg": "Теңдемени чечиңиз: ${A}x^4 = {B}x^2$",
+                "en": "Solve for x: ${A}x^4 - {B}x^2 = 0$",
+                "ru": "Решите уравнение: ${A}x^4 - {B}x^2 = 0$",
+                "kg": "Теңдемени чечиңиз: ${A}x^4 - {B}x^2 = 0$",
             },
         },
         "is_active": True,
@@ -364,10 +368,11 @@ TEMPLATES = [
         "template_json": {
             "topic": "linear_equation_la",
             "sympy_expr": "A*x - B",
+            "equation_rhs": "0",
             "ranges": {"A": [1, 8], "B": [-24, 24]},
             "constraints": ["A != 0"],
             "texts": {
-                "en": "Solve: {A}x = {B}",
+                "en": "Solve for x: {A}x = {B}",
                 "ru": "Решите: {A}x = {B}",
                 "kg": "Чечиңиз: {A}x = {B}",
             },
@@ -481,12 +486,13 @@ TEMPLATES = [
         "template_json": {
             "topic": "eigenvalues_2x2",
             "sympy_expr": "x**2 - (A+D)*x + (A*D - B*C)",
+            "equation_rhs": "0",
             "ranges": {"A": [-3, 3], "B": [1, 3], "C": [1, 3], "D": [-3, 3]},
             "constraints": ["(A-D)**2 + 4*B*C >= 0"],
             "texts": {
-                "en": "Find the eigenvalues of [[{A},{B}],[{C},{D}]]",
-                "ru": "Найдите собственные значения матрицы [[{A},{B}],[{C},{D}]]",
-                "kg": "[[{A},{B}],[{C},{D}]] матрицасынын меншик маанилерин табыңыз",
+                "en": "Find the eigenvalues of [[{A},{B}],[{C},{D}]] (solve the characteristic equation)",
+                "ru": "Найдите собственные значения матрицы [[{A},{B}],[{C},{D}]] (решите характеристическое уравнение)",
+                "kg": "[[{A},{B}],[{C},{D}]] матрицасынын меншик маанилерин табыңыз (мүнөздөмөлүк теңдемени чечиңиз)",
             },
         },
         "is_active": True,

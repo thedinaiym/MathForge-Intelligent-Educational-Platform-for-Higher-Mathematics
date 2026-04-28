@@ -25,8 +25,9 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "The student made a mistake transitioning from '{step_before}' to '{step_with_error}'. "
     "Explain the specific algebraic rule they broke in {language} language. "
     "Keep it encouraging. "
-    "Output ONLY text explanation, no formulas. "
-    "Do not solve the rest of the equation."
+    "Output ONLY plain text — no formulas, no LaTeX, no URLs, no links, no external references. "
+    "Do not solve the rest of the equation. "
+    "Do not mention any websites or resources."
 )
 
 
