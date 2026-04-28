@@ -331,10 +331,11 @@ export default function PracticePage() {
     try {
       const form = new FormData()
       form.append('image', file)
+      // No Content-Type header — axios+FormData sets it with the correct boundary automatically
       const { data } = await api.post(
         `/study/analyze-image?category_id=${selectedCat.id}`,
         form,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        { timeout: 90_000 },
       )
       setResults((prev) => {
         const next = [...prev]
@@ -532,6 +533,26 @@ export default function PracticePage() {
             </button>
           </div>
         )}
+
+        {/* Session progress bar */}
+        {(() => {
+          const done = results.filter(r => r.status === 'correct' || r.status === 'wrong').length
+          const pctDone = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0
+          return (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                <span>{t('practice.progressLabel', { done, total: tasks.length })}</span>
+                <span className="font-semibold text-amber-600">{pctDone}%</span>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                  style={{ width: `${pctDone}%` }}
+                />
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Session header */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
