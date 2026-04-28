@@ -90,52 +90,70 @@ function AuthSync() {
      * Handles ALL failure modes so the caller never hangs:
      *   - 404 → first login, register with defaults
      *   - 401 → token invalid, logout
-     *   - Network error / 5xx → log and logout (cold-start or infra issue)
+     *   - Network error / 5xx → retry up to MAX_ATTEMPTS times (Railway cold-start)
      */
     async function syncUser(displayName: string) {
-      try {
-        const { data } = await api.get<AuthUser>('/auth/me')
-        setUser(data)
-      } catch (err: any) {
-        const status: number | undefined = err?.response?.status
+      const MAX_ATTEMPTS = 4
+      const RETRY_DELAY_MS = 5_000
 
-        if (status === 404) {
-          try {
-            const { data } = await api.post<AuthUser>('/auth/register', {
-              name: displayName || 'Student',
-              role: 'student',
-              locale: 'ru',
-            })
-            setUser(data)
-          } catch {
-            // Registration also failed (network / 5xx) — app still initializes;
-            // user will be prompted to retry on next page load.
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const { data } = await api.get<AuthUser>('/auth/me')
+          setUser(data)
+          return
+        } catch (err: any) {
+          const status: number | undefined = err?.response?.status
+
+          if (status === 404) {
+            try {
+              const { data } = await api.post<AuthUser>('/auth/register', {
+                name: displayName || 'Student',
+                role: 'student',
+                locale: 'ru',
+              })
+              setUser(data)
+            } catch {
+              // Registration also failed — app still initializes on next page load.
+            }
+            return
           }
-        } else if (status === 401) {
-          logout()
-        } else {
-          // No response at all (Network Error) or 5xx (Railway cold-start, crash).
-          // Do NOT hang. Log, logout, let ProtectedRoute redirect to /auth.
-          console.error(
-            '[AuthSync] syncUser failed — status:', status ?? 'network error',
-            err?.message,
-          )
-          logout()
+
+          if (status === 401) {
+            logout()
+            return
+          }
+
+          // Network error or 5xx — Railway cold-start takes 20-30 s.
+          // Retry with delay so we don't give up immediately.
+          if (attempt < MAX_ATTEMPTS) {
+            console.warn(
+              `[AuthSync] syncUser attempt ${attempt}/${MAX_ATTEMPTS} failed (${status ?? 'network'}) — retrying in ${RETRY_DELAY_MS / 1000}s`,
+            )
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
+          } else {
+            console.error(
+              '[AuthSync] syncUser failed after all attempts — status:',
+              status ?? 'network error',
+              err?.message,
+            )
+            logout()
+          }
         }
       }
     }
 
-    // ── Safety timeout: force-initialize after 15 s ────────────────────────
+    // ── Safety timeout: force-initialize after 35 s ────────────────────────
+    // Raised from 15 s to accommodate syncUser retries (4 × 5 s = up to 20 s).
     // Catches any path (SIGNED_IN never fires, syncUser hangs, etc.) that
     // would otherwise leave the spinner on screen indefinitely.
     const safetyTimer = setTimeout(() => {
       if (!initialized) {
-        console.warn('[AuthSync] 15 s safety timeout — forcing initialization')
+        console.warn('[AuthSync] 35 s safety timeout — forcing initialization')
         logout()
         markInitialized()
         navigate('/auth?error=timeout', { replace: true })
       }
-    }, 15_000)
+    }, 35_000)
 
     // ── Supabase auth state listener ───────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

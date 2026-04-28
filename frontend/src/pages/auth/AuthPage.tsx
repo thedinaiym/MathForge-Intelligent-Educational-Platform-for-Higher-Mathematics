@@ -127,7 +127,7 @@ export default function AuthPage() {
     setLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'github',
-      options: { redirectTo: `${window.location.origin}/app/profile` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     })
   }
 
@@ -135,7 +135,7 @@ export default function AuthPage() {
     setLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/app/profile` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     })
   }
 

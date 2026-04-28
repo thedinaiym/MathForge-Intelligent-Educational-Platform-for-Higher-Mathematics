@@ -1,0 +1,482 @@
+================================================================================
+  MATHFORGE — PROJECT SUMMARY
+  Intelligent Educational Platform for Higher Mathematics
+  Developer: Dinaiym
+  Year: 2026
+================================================================================
+
+PROJECT OVERVIEW
+----------------
+MathForge is a full-stack AI-powered educational platform for university-level
+mathematics (Linear Algebra, Calculus, ORT). It combines symbolic computation
+(SymPy), large language models (Groq Llama-3), 3D avatar tutoring, and a
+complete classroom management system.
+
+Stack: FastAPI (Python) + React 19 (TypeScript) + Supabase + PostgreSQL
+
+
+================================================================================
+BACKEND (FastAPI / Python)
+================================================================================
+
+CORE ARCHITECTURE
+-----------------
+- FastAPI async application with 14 API routers
+- PostgreSQL database via SQLAlchemy async ORM
+- Supabase for authentication (JWT) and file storage
+- Pydantic-settings for environment configuration
+- Startup pipeline: schema migration → table creation → seeding → RAG indexing
+
+DATABASE MODELS
+---------------
+- User          — roles (admin / teacher / student), locale, teacher_id FK
+- BillingAccount — token balance (constraint: >= 0), daily bonus tracking
+- Category       — multilingual names (JSONB: en/ru/kg)
+- TaskTemplate   — SymPy expression, ranges, constraints, multilingual texts
+- StudentTracking — mastery level (0.0–1.0) per user per category
+- Classroom      — teacher-owned, unique 6-char join code
+- ClassroomMember — student ↔ classroom many-to-many with join timestamp
+- VideoLesson    — Supabase Storage URL, duration, classroom FK
+- ActivityLog    — daily activity heatmap counter (upsert per user per day)
+
+API ROUTES
+----------
+/api/auth         — Supabase JWT signup, login, refresh, logout, /me
+/api/tasks        — SymPy task generation (JSON + PDF), categories, templates,
+                    adaptive practice, ORT exam generation
+/api/avatar       — Groq Llama-3 AI tutor (guest + authenticated endpoints)
+/api/study        — Vision OCR pipeline, homework checker, solution verifier,
+                    activity heatmap, mastery progress stats
+/api/billing      — Token wallet, packages, purchase, daily bonus
+/api/classes      — Classroom CRUD, join by code, membership management
+/api/lessons      — Video lesson upload/manage (teacher), student view
+/api/rag          — Qdrant vector search over task templates (fastembed)
+/api/tutor        — Multi-turn voice chat (Groq Llama-3)
+/api/student      — Student PDF generation (homework + practice)
+/api/teachers     — Teacher classroom and invite management
+/api/ort          — ORT national exam generator (Part 1 + Part 2)
+/api/admin        — Dataset management, template administration
+
+TASK GENERATION ENGINE
+----------------------
+- SymPy-based constraint satisfaction: samples random coefficients within
+  defined ranges until all symbolic constraints are satisfied (max 100 attempts)
+- Safe symbol handling: N, I, E, O, S, C, Q protected from SymPy built-ins
+- Template registry with pluggable generators:
+    algebra/   — systems of equations, matrices (Axler Ch.3C), linear systems
+    calculus/  — limits, definite/indefinite integrals
+- All tasks stored as JSONB templates with multilingual texts
+- Token billing: 1 token for JSON preview, 5 tokens for PDF compilation
+
+ORT EXAM GENERATOR
+------------------
+- Kyrgyz national standardized test format
+- Part 1: Column comparison problems (A vs B → А/Б/В/Г answers)
+- Part 2: Multiple choice (5 options А–Д)
+- LaTeX compilation via pdflatex + Jinja2 templates
+- Trilingual output (ru / en / kg)
+
+HOMEWORK / OCR PIPELINE
+------------------------
+- Google Cloud Vision API for handwriting recognition
+- Multi-image upload support (up to N photos per submission)
+- asyncio.wait_for() timeouts: 60s per OCR call, 45s for LLM
+- Groq Vision for step extraction from photos
+- SymPy Arbitrator validates consecutive solution steps symbolically
+- Pedagogical hint generation on error detection
+- Student mastery tracking updated after each check
+
+RAG SERVICE (Semantic Search)
+------------------------------
+- Qdrant vector database (remote or in-memory fallback)
+- fastembed BAAI/bge-small-en-v1.5 embeddings (ONNX, no torch, ~30MB)
+- LangChain QdrantVectorStore for unified index/search
+- Graceful degradation: _available flag, all methods guard against Qdrant down
+- Auto-indexed on startup after seeding
+- AliasChoices for QDRANT_URL / QDRANT_ENDPOINT env var compatibility
+
+AVATAR AI TUTOR BACKEND
+------------------------
+- /guest-explain — no auth required, 3 free messages for landing page visitors
+- /explain       — authenticated, full AI tutoring session
+- Groq Llama-3.3-70b-versatile model
+- System prompts in all 3 languages (Aida persona)
+- Language normalizer: accepts BCP-47 variants (ky → kg, ru-RU → ru, etc.)
+- Field validators strip trailing newlines from API keys (copy-paste safety)
+
+CONFIGURATION & RESILIENCE
+---------------------------
+- pydantic AliasChoices for env var name aliases (QDRANT_URL / QDRANT_ENDPOINT)
+- field_validator strips whitespace/newlines from all API key fields
+- Graceful degradation on all external services (Qdrant, Groq, Vision)
+- Per-request asyncio timeouts prevent hung requests
+- Startup errors never crash the app — all wrapped in try/except with logging
+
+
+================================================================================
+FRONTEND (React 19 / TypeScript / Vite)
+================================================================================
+
+PAGES
+-----
+Landing (HomePage)
+  - Hero section with AI avatar + GuestChat (3 free messages, no login)
+  - Features section: "MathForge — Intelligent Ecosystem for Higher Mathematics"
+  - Tutors section, Video Lessons preview, News, Library preview
+  - Multilingual locale switcher (en / ru / kg)
+
+Auth (AuthPage)
+  - Supabase OAuth (GitHub / Google)
+  - Hash cleanup after OAuth redirect
+
+Student Pages
+  - StudentDashboard   — activity heatmap, mastery rings, streak counter
+  - PracticePage       — topic selection, difficulty, SymPy task session,
+                         photo OCR checking, GeoGebra math tools, anti-cheat
+  - HomeworkChecker    — problem condition textarea + multi-image dropzone,
+                         step extraction, AI feedback, "Momentum Bridge" CTA
+  - StudentAnalyzer    — manual step-by-step solution entry, SymPy validation
+  - StudentLessons     — video lessons from enrolled classrooms
+  - StudentPracticePDF — download practice PDF
+
+Teacher Pages
+  - TeacherGenerator  — generate JSON preview or PDF worksheets
+  - TeacherClassrooms — create/manage classes, invite code display
+  - TeacherLessons    — upload/manage video lessons per classroom
+  - LibraryPage       — browse task templates with KaTeX math rendering
+
+Shared Pages
+  - Dashboard         — role-aware overview
+  - BillingPage       — token balance, purchase packages
+  - ProfilePage       — locale setting, account info
+  - MathLibraryPage   — public math library
+
+Admin Pages
+  - AdminDataset      — template management, activation/deactivation
+
+3D AVATAR (AvatarTutor.tsx)
+----------------------------
+- Three.js + @react-three/fiber + @pixiv/three-vrm
+- VRM model support (0.x and 1.0 API compatibility)
+- Idle animations:
+    • Eye blinking — random interval 2–6 seconds
+    • Chest breathing — 0.4 Hz sine wave, 0.012 rad amplitude
+    • Head micro-movement — slow Y/Z sway to look alive
+- Lip-sync modes:
+    • Word-boundary timing (preferred) — scheduled per-word mouth events
+      from TTS microservice word boundaries
+    • Frequency analysis fallback — Web Audio API analyser, 300–3500 Hz bins
+- Camera framed at chest-up (OrbitControls target at head center ~1.5m)
+- VRM 0.x face direction corrected with VRMUtils.rotateVRM0
+
+AVATAR WIDGET (AvatarTeacherWidget.tsx)
+----------------------------------------
+- Floating bottom-right panel
+- Text mode: type question → Groq AI reply → TTS audio → lip-sync
+- Voice mode: hold-to-talk PTT → Web Speech STT → Groq → TTS
+- Phase state machine: idle → thinking → speaking → idle
+- Language auto-detection from i18next (en/ru/kg)
+- TTS fallback: if TTS fails, text reply still shown, phase resets to idle
+- Uses shared axios instance for auth (Supabase session token, not localStorage)
+
+GUEST CHAT (GuestChat.tsx)
+---------------------------
+- Landing page hero chat, no authentication required
+- 3 free messages tracked in localStorage
+- Limit-reached modal with registration CTA
+- Starter suggestions in all 3 languages
+- Progress bar showing messages remaining
+
+TTS MICROSERVICE (tts_microservice/main.py)
+--------------------------------------------
+- Separate FastAPI service (Railway deployment)
+- Microsoft Edge TTS Neural voices:
+    kg → ky-KG-NazgulNeural / ky-KG-ManasNeural
+    ru → ru-RU-SvetlanaNeural / ru-RU-DmitryNeural
+    en → en-US-JennyNeural / en-US-GuyNeural
+- /api/tts/generate             — returns MP3 bytes
+- /api/tts/generate-with-timing — returns base64 MP3 + word boundaries (JSON)
+- Word boundaries sourced directly from Edge TTS (100ns ticks → ms)
+- Root / redirects to /docs (Swagger UI)
+- CORS configured for production domain
+
+useTTSSpeech HOOK
+-----------------
+- Calls TTS microservice via VITE_TTS_URL env var (fallback: localhost:8001)
+- 10-second AbortController timeout on all fetch calls
+- Returns boolean: true = audio ready, false = TTS failed/timed out
+- Callers check return value to decide phase transition (prevents infinite hang)
+- Blob URL management with automatic revocation
+
+HOMEWORK CHECKER (HomeworkChecker.tsx)
+---------------------------------------
+- Split input: Card A = problem condition textarea, Card B = image dropzone
+- Multi-image upload (numbered thumbnails, individual remove buttons)
+- FormData sent without manual Content-Type (axios sets boundary automatically)
+- Per-request timeout: 120 seconds (Vision OCR pipeline)
+- "Momentum Bridge" CTA: navigates to /analyze?topic=... for weak topics
+- KaTeX rendering (MathText component) for extracted steps
+
+PRACTICE PAGE (PracticePage.tsx)
+---------------------------------
+- Setup: category picker with mastery rings, difficulty, task count
+- Session: tasks with photo upload OCR checking
+  - Progress bar: 0–100% based on checked tasks (added)
+  - Anti-cheat: visibilitychange listener records tab switches
+  - Timer display
+- Complete: score summary, mastery ring, retry/new session buttons
+- GeoGebra Math Tools floating button (Graphing/Geometry/3D/CAS/Suite)
+- Fixed: removed manual Content-Type header (was breaking multipart boundary)
+- Fixed: 90-second per-request timeout for OCR calls
+
+MATH RENDERING
+--------------
+- react-katex: InlineMath ($...$) and BlockMath ($$...$$)
+- MathText component: parses mixed text+LaTeX strings with regex
+  pattern: /\$\$([^$]+)\$\$|\$([^$]+)\$/g
+- Used in: LibraryPage task cards, HomeworkChecker results, PracticePage
+
+CLASSES & VIDEO LESSONS
+------------------------
+- JoinClassModal: enter 6-char code → join classroom
+- TeacherClassrooms: create class, display invite code, manage members
+- TeacherLessons: upload video to Supabase Storage, set title/description
+- StudentLessons: view lessons from all enrolled classrooms
+  - Fixed: retry: false on useQuery (prevented 30s spinner from retry backoff)
+
+GEOGEBRA INTEGRATION
+---------------------
+- GeoGebraWidget component (iframe API)
+- Embedded in PracticePage as floating modal
+- App switcher: Graphing / Geometry / 3D / CAS / Suite
+- Locale mapping: kg → ky (GeoGebra BCP-47)
+- Force remount on app switch (fresh applet state)
+
+STATE MANAGEMENT
+----------------
+- Zustand stores: authStore, mathStore, uiStore
+- React Query v5: server state, caching, background refetch
+- i18next: trilingual (en/ru/kg), localStorage persistence
+
+HTTP CLIENT (axios)
+-------------------
+- Supabase session token injected on every request (request interceptor)
+- Accept-Language header from i18next resolvedLanguage
+- 401 response → automatic Supabase signOut (response interceptor)
+- Per-request timeout overrides for long operations (OCR: 90–120s)
+
+
+================================================================================
+BUG FIXES & TECHNICAL DECISIONS
+================================================================================
+
+1. FormData Content-Type boundary bug
+   Problem: Manually setting Content-Type: multipart/form-data removes the
+            boundary parameter → FastAPI cannot parse the body → 422 error
+   Fix: Removed all manual Content-Type headers from FormData requests.
+        axios+FormData generates the correct header with boundary automatically.
+   Affected: HomeworkChecker.tsx, PracticePage.tsx
+
+2. Infinite loading spinner (HomeworkChecker + StudentLessons)
+   Problem A: Global axios timeout (15s) too short for Vision OCR pipeline
+   Fix A: Per-request { timeout: 120_000 } on OCR submissions
+   Problem B: useQuery retry: 1 caused two full timeout cycles before isError
+   Fix B: retry: false on StudentLessons query
+
+3. TTS failure causing infinite speaking phase
+   Problem: speakTimed() caught errors silently and returned void.
+            Callers always set phase('speaking') even with no audio.
+            onSpeechEnd never fired → UI hung forever.
+   Fix: speakTimed() and speak() now return Promise<boolean>.
+        Callers: setPhase(ttsOk ? 'speaking' : 'idle')
+        Also added 10s AbortController timeout to fetch calls.
+
+4. Avatar camera pointing at feet
+   Problem: Canvas camera { position } only sets location; default lookAt
+            is [0,0,0] (avatar feet origin in VRM)
+   Fix: Added <OrbitControls target={[0,1.45,0]} enableRotate={false}
+        enableZoom={false} enablePan={false} /> — applies lookAt to head.
+
+5. Avatar API 401 Unauthorized
+   Problem: AvatarTeacherWidget and VoiceTutorSession used raw fetch +
+            localStorage.getItem('access_token'). Supabase doesn't store
+            the token under that key → always null → 401.
+   Fix: Replaced with api axios instance (Supabase session interceptor).
+
+6. guest-explain 422 Unprocessable Entity
+   Problem: Backend min_length=2 on question field rejected short inputs.
+            Also: BCP-47 language variants (ky, ru-RU) not normalised.
+   Fix: Backend field_validator strips and normalises language codes.
+        Frontend apiLang variable normalises before sending.
+
+7. RAG service 404 startup error
+   Problem: .env had QDRANT_ENDPOINT but config.py read QDRANT_URL → empty
+            string → in-memory client → localhost probe → 404
+   Fix: AliasChoices("qdrant_url", "qdrant_endpoint") in Settings field.
+
+8. Groq API 502 (trailing newline in key)
+   Problem: GROQ_API_KEY copied into Railway with \n → illegal HTTP header
+   Fix: field_validator strips all API key fields in Settings.
+
+9. RAG graceful degradation
+   Problem: RAGService caught _ensure_collection() failure but set no flag.
+            index_templates() would still attempt Qdrant writes.
+   Fix: self._available: bool = False flag, set True only on success.
+        All methods return gracefully when unavailable.
+
+10. Double /api/api/ URL prefix
+    Problem: Some clients received double prefix from nginx proxy config +
+             VITE_API_URL already containing /api path segment.
+    Resolution: VITE_API_URL must be set as https://host/api (with /api,
+                no trailing slash) in Railway environment variables.
+
+11. Task condition_latex not rendered as math
+    Problem: condition_latex shown as raw code block in practice/library
+    Fix: MathText component parses $...$ delimiters and renders with KaTeX
+
+12. TypeScript Web Speech API types
+    Problem: window.webkitSpeechRecognition caused TS errors (no global type)
+    Fix: declare global block with full SpeechRecognition type surface
+
+
+================================================================================
+DEPLOYMENT (Railway)
+================================================================================
+
+Services:
+  - Backend API     — FastAPI on Railway (Python 3.11, port from $PORT env)
+  - TTS Microservice — Separate Railway service (Edge TTS, port from $PORT)
+  - Database        — Supabase PostgreSQL
+  - File Storage    — Supabase Storage (bucket: video_lessons)
+  - Vector DB       — Qdrant (Railway or Qdrant Cloud)
+
+Required Environment Variables (backend):
+  SUPABASE_DB_URL              — PostgreSQL connection string
+  SUPABASE_REST_URL            — Supabase REST API URL
+  SUPABASE_SERVICE_ROLE_KEY    — Service role for admin operations
+  GROQ_API_KEY                 — Groq LLM API key (no trailing newlines!)
+  GOOGLE_CLOUD_VISION_KEY      — Vision OCR API key
+  QDRANT_ENDPOINT              — Qdrant service URL
+  QDRANT_API_KEY               — Qdrant authentication key (if set)
+
+Required Environment Variables (frontend build):
+  VITE_API_URL    — Backend URL ending in /api (e.g. https://host.railway.app/api)
+  VITE_TTS_URL    — TTS microservice URL (e.g. https://tts.railway.app)
+  VITE_SUPABASE_URL      — Supabase project URL
+  VITE_SUPABASE_ANON_KEY — Supabase anon/public key
+
+CORS Origins configured in main.py:
+  - http://localhost:5173 (local dev)
+  - https://mathforgeapp.com
+  - https://www.mathforgeapp.com
+
+
+================================================================================
+MARKETING COPY (updated — accuracy claims removed)
+================================================================================
+
+Heading: "MathForge — Intelligent Ecosystem for Higher Mathematics"
+
+Feature cards:
+  1. Verified Math Engine
+     "SymPy ensures computational rigor with symbolic-precision verification,
+      while Groq explains the logic in plain language"
+
+  2. Trilingual Support
+     "Full localization for Kyrgyz, Russian, and English —
+      interface, tasks, and AI explanations"
+
+  3. Adaptive Practice
+     "AI tracks your progress and generates tasks precisely suited
+      to your current level and weak areas"
+
+  4. Professional Tools
+     "Generate LaTeX-formatted exams and worksheets for teachers —
+      unique variants, trilingual, print-ready"
+
+About text (removed claims):
+  BEFORE: "delivering 100% correct solutions with zero AI hallucinations"
+  AFTER:  "high-precision symbolic computation / computational rigor meets
+           accessible AI tutoring"
+
+Hero subtitle (removed):
+  BEFORE: "guaranteed math accuracy"
+  AFTER:  "symbolic-precision verification"
+
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+MathForge/
+├── backend/
+│   ├── main.py                          FastAPI entry point, startup pipeline
+│   ├── app/
+│   │   ├── api/routes/
+│   │   │   ├── avatar.py                AI tutor (guest + auth)
+│   │   │   ├── billing.py               Token wallet
+│   │   │   ├── classes.py               Classroom CRUD + join codes
+│   │   │   ├── lessons.py               Video lesson metadata
+│   │   │   ├── ocr.py                   Vision OCR + homework checker
+│   │   │   ├── ort.py                   ORT national exam generator
+│   │   │   ├── rag.py                   Semantic search (Qdrant)
+│   │   │   ├── stats.py                 Heatmap + mastery stats
+│   │   │   ├── student_pdf.py           Student PDF generation
+│   │   │   ├── tasks.py                 SymPy task generation
+│   │   │   ├── teacher.py               Teacher management
+│   │   │   └── tutor.py                 Multi-turn voice chat
+│   │   ├── core/
+│   │   │   ├── config.py                Pydantic settings + env aliases
+│   │   │   ├── engine/generator.py      SymPy TaskGenerator
+│   │   │   ├── engine/arbitrator.py     Adaptive difficulty
+│   │   │   └── generators/              Algebra + Calculus plugins
+│   │   ├── db/
+│   │   │   ├── models.py                SQLAlchemy ORM models
+│   │   │   ├── database.py              Async session
+│   │   │   └── seed.py                  Fixture data
+│   │   └── services/
+│   │       ├── rag_service.py           Qdrant + fastembed
+│   │       ├── pdf_maker.py             LaTeX → pdflatex
+│   │       └── ort_generator.py         ORT exam builder
+│
+├── frontend/src/
+│   ├── pages/
+│   │   ├── HomePage.tsx                 Landing + GuestChat + Features
+│   │   ├── auth/AuthPage.tsx            Supabase OAuth
+│   │   ├── student/
+│   │   │   ├── PracticePage.tsx         Task session + GeoGebra
+│   │   │   ├── HomeworkChecker.tsx      Multi-image homework OCR
+│   │   │   ├── StudentAnalyzer.tsx      Manual step entry
+│   │   │   └── StudentLessons.tsx       Video lessons viewer
+│   │   └── teacher/
+│   │       ├── TeacherClassrooms.tsx    Class + invite management
+│   │       ├── TeacherLessons.tsx       Video upload
+│   │       └── TeacherGenerator.tsx     PDF worksheet generator
+│   ├── components/
+│   │   ├── avatar/
+│   │   │   ├── AvatarTutor.tsx          3D VRM avatar + lip-sync + idle
+│   │   │   ├── AvatarTeacherWidget.tsx  Floating chat widget
+│   │   │   ├── GuestChat.tsx            Landing page chat (no auth)
+│   │   │   ├── VoiceTutorSession.tsx    PTT voice chat
+│   │   │   ├── useTTSSpeech.ts          TTS hook (timeout + bool return)
+│   │   │   └── useWebSpeechSTT.ts       Web Speech API STT hook
+│   │   ├── math/MathRenderer.tsx        KaTeX + MathText component
+│   │   └── geogebra/GeoGebraWidget.tsx  GeoGebra iframe API
+│   ├── locales/
+│   │   ├── en.json                      English translations
+│   │   ├── ru.json                      Russian translations
+│   │   └── kg.json                      Kyrgyz translations
+│   └── lib/
+│       ├── axios.ts                     Axios + Supabase auth interceptor
+│       └── supabase.ts                  Supabase client
+│
+└── tts_microservice/
+    ├── main.py                          Edge TTS FastAPI service
+    └── engines/
+        ├── kyrgyz.py                    ky-KG Neural TTS
+        ├── russian.py                   ru-RU Neural TTS
+        └── english.py                   en-US Neural TTS
+
+================================================================================
+End of Project Summary
+================================================================================
