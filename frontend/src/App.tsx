@@ -199,6 +199,7 @@ function AuthSync() {
               cleanHash()
               clearTimeout(safetyTimer)
               markInitialized()
+              navigate('/app/dashboard', { replace: true })
             }, 3_000)
 
             return // defer initialization — SIGNED_IN or the fallback above will finalize
@@ -221,12 +222,8 @@ function AuthSync() {
           await syncUser(displayName)
           cleanHash()
           clearTimeout(safetyTimer)
-
-          if (!initialized) {
-            markInitialized()
-          } else {
-            navigate('/app/dashboard', { replace: true })
-          }
+          markInitialized()
+          navigate('/app/dashboard', { replace: true })
         }
 
         // ── SIGNED_OUT ───────────────────────────────────────────────────

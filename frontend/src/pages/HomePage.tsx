@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,6 +11,7 @@ import {
   Sparkles,
   ChevronDown,
   ArrowRight,
+  Volume2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Footer from '../components/layout/Footer'
@@ -104,6 +106,12 @@ function Navbar() {
 
 const LANG_MAP: Record<string, TTSLanguage> = { en: 'en', ru: 'ru', kg: 'kg', ky: 'kg' }
 
+const AIDA_GREETINGS: Record<string, string> = {
+  en: "Hi! I'm Aida, your AI math tutor. Ask me anything!",
+  ru: "Привет! Я Айда, ваш AI-репетитор по математике. Задайте любой вопрос!",
+  kg: "Саламатсызбы! Мен Айда, AI математика мугалимиңизмин. Суроо бериңиз!",
+}
+
 function Hero() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -112,7 +120,19 @@ function Hero() {
   const lang: TTSLanguage = LANG_MAP[i18n.resolvedLanguage ?? i18n.language ?? 'ru'] ?? 'ru'
   const { audioUrl, wordBoundaries, speakTimed, clear } = useTTSSpeech()
 
+  const [showSoundHint, setShowSoundHint] = useState(true)
+
+  // Reset hint whenever language changes so visitor can hear greeting in new language
+  useEffect(() => { setShowSoundHint(true) }, [lang])
+
+  const playGreeting = () => {
+    const text = AIDA_GREETINGS[lang] ?? AIDA_GREETINGS.ru
+    speakTimed(text, lang, 'female')
+    setShowSoundHint(false)
+  }
+
   const handleAidaReply = (text: string) => {
+    setShowSoundHint(false)
     speakTimed(text, lang, 'female')
   }
 
@@ -152,7 +172,7 @@ function Hero() {
           </p>
 
           {/* Avatar — the hero */}
-          <div className="w-full rounded-3xl overflow-hidden shadow-2xl shadow-black/60"
+          <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl shadow-black/60"
                style={{ maxWidth: 480 }}>
             <AvatarTutor
               audioUrl={audioUrl}
@@ -160,6 +180,23 @@ function Hero() {
               height={440}
               onSpeechEnd={clear}
             />
+
+            {/* Voice hint — shown until user activates TTS (browser requires user gesture) */}
+            {showSoundHint && !audioUrl && (
+              <button
+                onClick={playGreeting}
+                className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2
+                           px-4 py-2 rounded-full bg-black/70 backdrop-blur-md
+                           border border-white/20 hover:border-amber-400/60
+                           text-white/75 hover:text-white text-xs font-medium
+                           transition-all shadow-lg z-10 whitespace-nowrap"
+              >
+                <Volume2 size={13} className="text-amber-400" />
+                {lang === 'ru' ? 'Нажмите, чтобы услышать Айду' :
+                 lang === 'kg' ? 'Айданын үнүн угуу' :
+                 'Tap to hear Aida'}
+              </button>
+            )}
           </div>
 
           {/* Logged-in user CTAs below avatar */}
