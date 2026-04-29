@@ -7,12 +7,12 @@ export interface Category {
   name: string
 }
 
-// Matches only when 'ort' / 'орт' is a whole word (not a substring of e.g. "proportion")
-const ORT_WORD_RE = /\bort\b|\bорт\b/i
-
-/** True if this category represents the ORT national exam, not a regular subject. */
+/** True if this category represents the ORT national exam, not a regular subject.
+ *  JS \b word-boundaries don't work for Cyrillic, so we use startsWith after
+ *  uppercasing — ORT categories always start with "ORT" or "ОРТ". */
 export function isOrtCategory(cat: Category): boolean {
-  return ORT_WORD_RE.test(cat.name)
+  const upper = cat.name.trim().toUpperCase()
+  return upper.startsWith('ORT') || upper.startsWith('ОРТ')
 }
 
 export function useCategories() {
@@ -26,7 +26,8 @@ export function useCategories() {
       const { data } = await api.get<Category[]>('/tasks/categories')
       return data
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,  // 30 min — categories rarely change
+    gcTime:    60 * 60 * 1000,  // keep in memory 1 hour
     retry: 2,
   })
 }
