@@ -7,6 +7,7 @@ POST /api/tasks/generate/pdf  — generate task list and compile to PDF (Teacher
 """
 import asyncio
 import logging
+import random
 import uuid
 import traceback  # <--- ДОБАВЛЕНО ДЛЯ ЛОГИРОВАНИЯ ОШИБОК
 from datetime import date
@@ -125,6 +126,11 @@ async def _generate_tasks(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active templates found for the selected category and difficulty.",
         )
+
+    # Shuffle so each generate call picks a different template first,
+    # giving variety when count=1 (the common student practice case).
+    templates = list(templates)
+    random.shuffle(templates)
 
     generated: list[dict] = []
     for i in range(min(payload.count, len(templates) * 10)):

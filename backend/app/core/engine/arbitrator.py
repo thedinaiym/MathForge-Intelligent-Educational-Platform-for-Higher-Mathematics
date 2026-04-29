@@ -17,6 +17,7 @@ CRITICAL: Never use an LLM for validation — SymPy only.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import sympy as sp
@@ -35,6 +36,16 @@ except Exception:  # pragma: no cover
     _LATEX_AVAILABLE = False
 
 _IMPLICIT_TRANSFORMS = standard_transformations + (implicit_multiplication_application,)
+
+# Matches a single uppercase letter that is NOT preceded by a backslash
+# (so LaTeX commands like \Rightarrow are unaffected).
+_SINGLE_UPPER = re.compile(r'(?<!\\)\b([A-Z])\b')
+
+
+def _normalize_step(s: str) -> str:
+    """Lowercase standalone uppercase variable letters: X→x, Y→y, etc.
+    Students often write X=-10 meaning the same as x=-10."""
+    return _SINGLE_UPPER.sub(lambda m: m.group(1).lower(), s.strip())
 
 
 # ── Internal parsing helpers ──────────────────────────────────────────────────
@@ -84,7 +95,7 @@ def _step_to_expr(step: str) -> sp.Expr:
     equivalent equations yield a difference of 0.
     Pure expressions are returned as-is.
     """
-    step = step.strip()
+    step = _normalize_step(step)   # X→x, Y→y so case doesn't matter
     if "=" in step:
         lhs_str, rhs_str = step.split("=", 1)
         lhs = _parse_expression(lhs_str)

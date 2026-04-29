@@ -146,6 +146,142 @@ TEMPLATES = [
         "is_active": True,
     },
 
+    # ── easy (additional variety) ──────────────────────────────────────────
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000011"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Two-Step Linear Equation",
+            "ru": "Линейное уравнение (два шага)",
+            "kg": "Эки кадамдуу сызыктуу теңдеме",
+        },
+        "template_json": {
+            "topic": "linear_two_step",
+            "sympy_expr": "A*x + B - C",
+            "equation_rhs": "0",
+            "ranges": {"A": [1, 8], "B": [-15, 15], "C": [-15, 15]},
+            "constraints": ["A != 0", "B != C"],
+            "texts": {
+                "en": "Solve for x: {A}x + {B} = {C}",
+                "ru": "Решите: {A}x + {B} = {C}",
+                "kg": "Чечиңиз: {A}x + {B} = {C}",
+            },
+        },
+        "is_active": True,
+    },
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000012"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Fraction Equation",
+            "ru": "Дробное уравнение",
+            "kg": "Бөлчөктүү теңдеме",
+        },
+        "template_json": {
+            "topic": "fraction_equation",
+            "sympy_expr": "x/B - C",
+            "equation_rhs": "0",
+            "ranges": {"B": [2, 9], "C": [1, 8]},
+            "constraints": [],
+            "texts": {
+                "en": "Solve for x: x / {B} = {C}",
+                "ru": "Решите: x / {B} = {C}",
+                "kg": "Чечиңиз: x / {B} = {C}",
+            },
+        },
+        "is_active": True,
+    },
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000013"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Arithmetic Sequence — nth Term",
+            "ru": "Арифметическая прогрессия — n-й член",
+            "kg": "Арифметикалык прогрессия — n-чи мүчө",
+        },
+        "template_json": {
+            "topic": "arithmetic_sequence_nth",
+            "sympy_expr": "A + (N - 1) * B",
+            "ranges": {"A": [1, 20], "B": [2, 10], "N": [5, 15]},
+            "constraints": [],
+            "texts": {
+                "en": "Find the {N}th term of an arithmetic sequence with first term {A} and common difference {B}",
+                "ru": "Найдите {N}-й член арифметической прогрессии с первым членом {A} и разностью {B}",
+                "kg": "Биринчи мүчөсү {A}, айырмасы {B} болгон арифметикалык прогрессиянын {N}-чи мүчөсүн табыңыз",
+            },
+        },
+        "is_active": True,
+    },
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000014"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Power Evaluation",
+            "ru": "Степень числа",
+            "kg": "Сандын даражасы",
+        },
+        "template_json": {
+            "topic": "power_evaluation",
+            "sympy_expr": "A**N",
+            "ranges": {"A": [2, 5], "N": [2, 4]},
+            "constraints": [],
+            "texts": {
+                "en": "Compute ${A}^{{{N}}}$",
+                "ru": "Вычислите ${A}^{{{N}}}$",
+                "kg": "${A}^{{{N}}}$ эсептеңиз",
+            },
+        },
+        "is_active": True,
+    },
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000015"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Percentage",
+            "ru": "Процент числа",
+            "kg": "Сандын проценти",
+        },
+        "template_json": {
+            "topic": "percentage",
+            "sympy_expr": "A * B / 100",
+            "ranges": {"A": [10, 90], "B": [20, 500]},
+            "constraints": ["A % 10 == 0"],
+            "texts": {
+                "en": "Find {A}% of {B}",
+                "ru": "Найдите {A}% от {B}",
+                "kg": "{B} санынын {A}% табыңыз",
+            },
+        },
+        "is_active": True,
+    },
+    {
+        "id": uuid.UUID("10000000-0000-0000-0000-000000000016"),
+        "category_id": _CAT_CALCULUS,
+        "difficulty": "easy",
+        "title_translations": {
+            "en": "Proportion",
+            "ru": "Пропорция",
+            "kg": "Пропорция",
+        },
+        "template_json": {
+            "topic": "proportion",
+            "sympy_expr": "B * C / A",
+            "ranges": {"A": [2, 8], "B": [3, 9], "C": [2, 12]},
+            "constraints": ["A != 0", "B*C % A == 0"],
+            "texts": {
+                "en": "Solve the proportion: {A} / {B} = {C} / x  →  find x",
+                "ru": "Решите пропорцию: {A} / {B} = {C} / x  →  найдите x",
+                "kg": "Пропорцияны чечиңиз: {A} / {B} = {C} / x  →  x табыңыз",
+            },
+        },
+        "is_active": True,
+    },
+
     # ── medium ─────────────────────────────────────────────────────────────
     {
         "id": uuid.UUID("10000000-0000-0000-0000-000000000005"),
