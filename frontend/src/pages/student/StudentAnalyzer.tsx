@@ -241,7 +241,8 @@ function TopicTaskGenerator({
               <p className="mb-2 text-slate-600">{activeTask.question_text}</p>
             )}
             <div className="py-1 text-base">
-              <LatexText src={activeTask.condition_latex} />
+              {/* Wrap in $...$ so LatexText renders it as inline math */}
+              <LatexText src={`$${activeTask.condition_latex}$`} />
             </div>
           </div>
 
