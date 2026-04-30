@@ -181,6 +181,36 @@ function TeacherPanel({ userId }: { userId: string }) {
   )
 }
 
+// ── Skeleton shown while user record loads ────────────────────────────────────
+
+function ProfileSkeleton() {
+  return (
+    <div className="max-w-lg space-y-6 animate-pulse">
+      <div className="h-8 w-40 bg-slate-200 rounded-lg" />
+      <div className="bg-white rounded-xl p-6 border border-slate-100 space-y-4">
+        <div className="space-y-2">
+          <div className="h-4 w-24 bg-slate-200 rounded" />
+          <div className="h-10 bg-slate-100 rounded-lg" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-4 w-16 bg-slate-200 rounded" />
+          <div className="h-10 bg-slate-100 rounded-lg" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-4 w-28 bg-slate-200 rounded" />
+          <div className="h-10 bg-slate-100 rounded-lg" />
+        </div>
+        <div className="h-10 w-36 bg-amber-100 rounded-lg" />
+      </div>
+      <div className="bg-white rounded-xl p-6 border border-slate-100 space-y-3">
+        <div className="h-5 w-32 bg-slate-200 rounded" />
+        <div className="h-4 w-64 bg-slate-100 rounded" />
+        <div className="h-10 bg-slate-100 rounded-lg" />
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
@@ -223,15 +253,25 @@ export default function ProfilePage() {
       const resp = await api.patch('/auth/me', data)
       return resp.data
     },
-    onSuccess: (data) => {
-      setUser({ id: data.id, name: data.name, role: data.role, locale: data.locale })
+    onMutate: (data) => {
+      // Optimistic update — UI feels instant, no spinner needed
+      if (user) setUser({ ...user, name: data.name, role: data.role, locale: data.locale })
       i18n.changeLanguage(data.locale)
       localStorage.setItem('mathforge_lang', data.locale)
+    },
+    onSuccess: (data) => {
+      setUser({ id: data.id, name: data.name, role: data.role, locale: data.locale })
+    },
+    onError: () => {
+      // Revert to original user if API fails
+      if (user) reset({ name: user.name ?? '', role: (user.role === 'admin' ? 'teacher' : user.role) ?? 'student', locale: activeLocale })
     },
   })
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin'  // admin keeps teacher panel
   const isStudent = user?.role === 'student'
+
+  if (!user) return <ProfileSkeleton />
 
   return (
     <div className="max-w-lg space-y-6">
@@ -278,11 +318,13 @@ export default function ProfilePage() {
         </div>
 
         <Button type="submit" loading={mutation.isPending} disabled={mutation.isPending}>
-          {mutation.isSuccess ? t('profile.saved') : t('profile.save')}
+          {mutation.isSuccess ? '✓ ' + t('profile.saved') : t('profile.save')}
         </Button>
 
         {mutation.isError && (
-          <p className="text-sm text-red-500">{String((mutation.error as any)?.response?.data?.detail ?? 'Error')}</p>
+          <p className="text-sm text-red-500">
+            {String((mutation.error as any)?.response?.data?.detail ?? t('profile.saveError', 'Ошибка сохранения — попробуйте ещё раз'))}
+          </p>
         )}
       </form>
 
