@@ -212,7 +212,7 @@ def _extract_text_pdfplumber(pdf_path: Path) -> str:
         return "\n".join((page.extract_text() or "") for page in pdf.pages)
 
 
-VISION_MODEL   = "llama-3.2-90b-vision-preview"  # Groq vision model — OCR step
+VISION_MODEL   = "meta-llama/llama-4-scout-17b-16e-instruct"  # Groq vision model — OCR step
 PAGES_PER_CALL = 3                               # pages per vision call
 
 OCR_PROMPT = """You are a math textbook scanner.
