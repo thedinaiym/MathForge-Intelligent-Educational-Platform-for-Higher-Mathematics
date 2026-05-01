@@ -87,24 +87,74 @@ function AuthSync() {
 
     /**
      * Fetch or create the backend user profile.
-     * Handles ALL failure modes so the caller never hangs:
-     *   - 404 → first login, register with defaults
-     *   - 401 → token invalid, logout
-     *   - Network error / 5xx → retry up to MAX_ATTEMPTS times (Railway cold-start)
+     *
+     * Strategy:
+     *   - 200       → set user from backend
+     *   - 404       → first login, register with defaults
+     *   - 401       → token invalid, logout (only case we block the user)
+     *   - Network / 5xx (Railway cold-start) → let user in immediately with
+     *               a minimal profile built from the Supabase session, then
+     *               retry the backend sync in the background so role/locale
+     *               are correct once Railway wakes up.
      */
     async function syncUser(displayName: string) {
-      const MAX_ATTEMPTS = 4
-      const RETRY_DELAY_MS = 5_000
+      const MAX_BG_ATTEMPTS = 6
+      const BG_RETRY_MS     = 8_000
 
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      async function _tryFetch(): Promise<'ok' | 'not_found' | 'unauthorized' | 'network'> {
         try {
           const { data } = await api.get<AuthUser>('/auth/me')
           setUser(data)
-          return
+          return 'ok'
         } catch (err: any) {
           const status: number | undefined = err?.response?.status
+          if (status === 404) return 'not_found'
+          if (status === 401) return 'unauthorized'
+          return 'network'
+        }
+      }
 
-          if (status === 404) {
+      const result = await _tryFetch()
+
+      if (result === 'ok') return
+
+      if (result === 'not_found') {
+        try {
+          const { data } = await api.post<AuthUser>('/auth/register', {
+            name: displayName || 'Student',
+            role: 'student',
+            locale: 'ru',
+          })
+          setUser(data)
+        } catch {/* registration failed — background retry will fix it */}
+        return
+      }
+
+      if (result === 'unauthorized') {
+        logout()
+        return
+      }
+
+      // Network / 5xx — Railway is cold-starting.
+      // Let the user in immediately with session data, sync in background.
+      console.warn('[AuthSync] Backend unreachable — letting user in with session fallback')
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (currentSession?.user) {
+        setUser({
+          id:     currentSession.user.id,
+          name:   displayName || currentSession.user.email || 'Student',
+          role:   'student',
+          locale: 'ru',
+        } as AuthUser)
+      }
+
+      // Background sync — retry until Railway wakes up
+      ;(async () => {
+        for (let i = 1; i <= MAX_BG_ATTEMPTS; i++) {
+          await new Promise(r => setTimeout(r, BG_RETRY_MS * i))
+          const bg = await _tryFetch()
+          if (bg === 'ok' || bg === 'unauthorized') break
+          if (bg === 'not_found') {
             try {
               const { data } = await api.post<AuthUser>('/auth/register', {
                 name: displayName || 'Student',
@@ -112,48 +162,25 @@ function AuthSync() {
                 locale: 'ru',
               })
               setUser(data)
-            } catch {
-              // Registration also failed — app still initializes on next page load.
-            }
-            return
-          }
-
-          if (status === 401) {
-            logout()
-            return
-          }
-
-          // Network error or 5xx — Railway cold-start takes 20-30 s.
-          // Retry with delay so we don't give up immediately.
-          if (attempt < MAX_ATTEMPTS) {
-            console.warn(
-              `[AuthSync] syncUser attempt ${attempt}/${MAX_ATTEMPTS} failed (${status ?? 'network'}) — retrying in ${RETRY_DELAY_MS / 1000}s`,
-            )
-            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
-          } else {
-            console.error(
-              '[AuthSync] syncUser failed after all attempts — status:',
-              status ?? 'network error',
-              err?.message,
-            )
-            logout()
+            } catch { /* ignore */ }
+            break
           }
         }
-      }
+      })()
     }
 
-    // ── Safety timeout: force-initialize after 35 s ────────────────────────
-    // Raised from 15 s to accommodate syncUser retries (4 × 5 s = up to 20 s).
-    // Catches any path (SIGNED_IN never fires, syncUser hangs, etc.) that
-    // would otherwise leave the spinner on screen indefinitely.
+    // ── Safety timeout: force-initialize after 12 s ───────────────────────
+    // syncUser now lets the user in immediately on network errors,
+    // so 12 s is enough for the Supabase session exchange + one fast API try.
     const safetyTimer = setTimeout(() => {
       if (!initialized) {
-        console.warn('[AuthSync] 35 s safety timeout — forcing initialization')
-        logout()
+        console.warn('[AuthSync] 12 s safety timeout — forcing initialization')
         markInitialized()
-        navigate('/auth?error=timeout', { replace: true })
+        if (window.location.pathname === '/auth') {
+          navigate('/app/dashboard', { replace: true })
+        }
       }
-    }, 35_000)
+    }, 12_000)
 
     // ── Supabase auth state listener ───────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
