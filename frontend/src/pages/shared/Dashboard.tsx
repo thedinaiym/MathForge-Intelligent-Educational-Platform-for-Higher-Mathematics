@@ -202,13 +202,14 @@ export default function Dashboard() {
   }, [])
 
   // ── Stats query ────────────────────────────────────────────────────────────
-  const { data: stats, isLoading, isError } = useQuery<StatsResponse>({
+  const { data: stats, isLoading, isError, failureCount } = useQuery<StatsResponse>({
     queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
       const { data } = await api.get<StatsResponse>('/study/stats')
       return data
     },
-    retry: 1,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(3000 * 2 ** attempt, 15_000),
     staleTime: 60_000,
   })
 
@@ -231,11 +232,17 @@ export default function Dashboard() {
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (isLoading) {
+    const isWakingUp = failureCount > 0
     return (
       <div className="p-8 space-y-6 animate-pulse">
         <div className="h-8 w-56 bg-slate-200 rounded-lg" />
         <div className="h-40 bg-slate-100 rounded-2xl" />
         <div className="h-48 bg-slate-100 rounded-2xl" />
+        {isWakingUp && (
+          <p className="text-center text-xs text-slate-400 animate-pulse">
+            {t('dashboard.waking')}
+          </p>
+        )}
       </div>
     )
   }

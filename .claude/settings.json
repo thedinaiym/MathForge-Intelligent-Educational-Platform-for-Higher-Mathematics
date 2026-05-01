@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from app.db.models import SiteRating; print\\('OK'\\)\")"
+    ]
+  }
+}

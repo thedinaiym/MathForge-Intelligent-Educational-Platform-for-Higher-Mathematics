@@ -18,8 +18,9 @@ export function useBalance() {
       const { data } = await api.get<BalanceResponse>('/billing/balance')
       return data
     },
-    enabled: !!user,   // only fetch when logged in
-    retry: 1,          // 1 retry max (not 3)
+    enabled: !!user,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(3000 * 2 ** attempt, 15_000),
     staleTime: 30_000,
   })
 
