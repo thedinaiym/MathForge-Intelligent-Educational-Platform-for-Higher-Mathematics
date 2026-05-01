@@ -210,6 +210,105 @@ async def list_categories(
     ]
 
 
+# ── Kyrgyz topic-name translation map ────────────────────────────────────────
+# LLM-seeded templates store English topic names even in the 'kg' slot.
+# This map translates the most common ones to proper Kyrgyz math terminology.
+_TOPIC_KG_MAP: dict[str, str] = {
+    "quadratic equations": "Квадраттык теңдемелер",
+    "quadratic equation": "Квадраттык теңдеме",
+    "linear equations": "Сызыктуу теңдемелер",
+    "linear equation": "Сызыктуу теңдеме",
+    "linear inequalities": "Сызыктуу теңсиздиктер",
+    "systems of equations": "Теңдемелер системасы",
+    "systems of linear equations": "Сызыктуу теңдемелер системасы",
+    "inequalities": "Теңсиздиктер",
+    "quadratic inequalities": "Квадраттык теңсиздиктер",
+    "absolute value inequalities": "Модулу бар теңсиздиктер",
+    "rational inequalities": "Рационалдык теңсиздиктер",
+    "logarithmic inequalities": "Логарифмдик теңсиздиктер",
+    "absolute value": "Модуль",
+    "limits": "Чектер",
+    "limits of functions": "Функциялардын чектери",
+    "derivatives": "Туунду",
+    "derivatives of logarithmic functions": "Логарифмдик функциялардын туундулары",
+    "higher-order derivatives": "Жогорку тартиптеги туундулар",
+    "implicit differentiation": "Кыйыр дифференциациялоо",
+    "differentials": "Дифференциалдар",
+    "indefinite integrals": "Аныкталбаган интегралдар",
+    "definite integrals": "Аныкталган интегралдар",
+    "integration": "Интегралдоо",
+    "integration of rational functions": "Рационалдык функцияларды интегралдоо",
+    "integration of exponential functions": "Экспоненциалдык функцияларды интегралдоо",
+    "double integrals": "Кош интегралдар",
+    "triple integrals": "Үч эселик интегралдар",
+    "line integrals": "Контурдук интегралдар",
+    "series": "Катарлар",
+    "series convergence": "Катардын жыйышуусу",
+    "geometric series": "Геометриялык катар",
+    "alternating series": "Кезектешкен катарлар",
+    "infinite series": "Чексиз катарлар",
+    "power series": "Даражалык катарлар",
+    "series expansion": "Катарга жайуу",
+    "series and sequences": "Катарлар жана ырааттуулуктар",
+    "sequences": "Ырааттуулуктар",
+    "partial derivatives": "Жарым туунду",
+    "parametric functions": "Параметрдик функциялар",
+    "parametric equations": "Параметрдик теңдемелер",
+    "logarithmic equations": "Логарифмдик теңдемелер",
+    "trigonometric equations": "Тригонометриялык теңдемелер",
+    "logarithmic functions": "Логарифмдик функциялар",
+    "linear functions": "Сызыктуу функциялар",
+    "quadratic functions": "Квадраттык функциялар",
+    "radical functions": "Радикалдык функциялар",
+    "exponential functions": "Экспоненциалдык функциялар",
+    "trigonometric functions": "Тригонометриялык функциялар",
+    "absolute value functions": "Модулу бар функциялар",
+    "polynomial functions": "Полиномдук функциялар",
+    "algebraic functions": "Алгебралык функциялар",
+    "power functions": "Даражалык функциялар",
+    "inverse functions": "Кери функциялар",
+    "functions and domains": "Функциялар жана аныкталуу чөйрөсү",
+    "continuity": "Үзгүлтүксүздүк",
+    "uniform continuity": "Бирдей үзгүлтүксүздүк",
+    "tangents and normals": "Жанамалар жана нормалдар",
+    "maxima and minima": "Максимум жана минимум",
+    "curvature": "Ийриlik",
+    "extremum of a function of several variables": "Бир нече өзгөрмөлүү функциянын экстремуму",
+    "surfaces and volumes": "Беттер жана көлөмдөр",
+    "volumes of solids": "Телолордун көлөмдөрү",
+    "volumes of revolution": "Айлануу денесинин көлөмү",
+    "arc length": "Доганын узундугу",
+    "area in polar coordinates": "Полярдык координаталардагы аянт",
+    "gradient": "Градиент",
+    "potential energy": "Потенциалдык энергия",
+    "permutations": "Которуштуруулар",
+    "combinations": "Айкалыштар",
+    "divisibility": "Бөлүнүүчүлүк",
+    "divisibility of integers": "Бүтүн сандардын бөлүнүүчүлүгү",
+    "last digit": "Акыркы цифра",
+    "radicals": "Радикалдар",
+    "polynomials": "Полиномдор",
+    "factorials": "Факториалдар",
+    "exponents": "Даражалар",
+    "roots": "Тамырлар",
+    "differential equations": "Дифференциалдык теңдемелер",
+    "upper and lower bounds": "Жогорку жана төмөнкү чектер",
+}
+
+import re as _re
+
+def _apply_kg_topic_translation(title: str) -> str:
+    """Translate English topic prefix to Kyrgyz, preserve source book suffix."""
+    m = _re.match(r"^(.+?)\s*\((.+)\)$", title)
+    if m:
+        topic_en = m.group(1).strip().lower()
+        source   = m.group(2).strip()
+        kg = _TOPIC_KG_MAP.get(topic_en)
+        return f"{kg} ({source})" if kg else title
+    kg = _TOPIC_KG_MAP.get(title.strip().lower())
+    return kg if kg else title
+
+
 # ── Route: list templates for a category (teacher topic cascade) ──────────────
 
 @router.get("/templates", response_model=list[TaskTemplateInfo])
@@ -229,14 +328,13 @@ async def list_templates(
         )
     )
     templates = result.scalars().all()
-    return [
-        TaskTemplateInfo(
-            id=t.id,
-            title=t.get_title(locale),
-            difficulty=t.difficulty,
-        )
-        for t in templates
-    ]
+    items = []
+    for t in templates:
+        title = t.get_title(locale)
+        if locale == "kg":
+            title = _apply_kg_topic_translation(title)
+        items.append(TaskTemplateInfo(id=t.id, title=title, difficulty=t.difficulty))
+    return items
 
 
 # ── Route: generate JSON preview (LibraryPage inline view) ────────────────────

@@ -10,10 +10,10 @@
  * Route: /app/student/practice-pdf
  */
 import 'katex/dist/katex.min.css'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, ExternalLink, FileDown, RefreshCw } from 'lucide-react'
+import { Download, ExternalLink, FileDown, RefreshCw, Search } from 'lucide-react'
 import api from '../../lib/axios'
 import { useCategories, isOrtCategory } from '../../hooks/useCategories'
 import { useBalance } from '../../hooks/useBalance'
@@ -77,23 +77,15 @@ export default function StudentPracticePDF() {
     template_ids: [],
     count:        10,
   })
+  const [topicSearch, setTopicSearch] = useState('')
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm(prev => ({ ...prev, [key]: val }))
 
-  const handleCategoryChange = (id: string) =>
+  const handleCategoryChange = (id: string) => {
+    setTopicSearch('')
     setForm(prev => ({ ...prev, category_id: id, template_ids: [] }))
-
-  const toggleTemplate = (id: string) =>
-    setForm(prev => {
-      const has = prev.template_ids.includes(id)
-      return {
-        ...prev,
-        template_ids: has
-          ? prev.template_ids.filter(t => t !== id)
-          : [...prev.template_ids, id],
-      }
-    })
+  }
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: allCategories = [], isLoading: loadingCats } = useCategories()
@@ -116,6 +108,37 @@ export default function StudentPracticePDF() {
       tmpl.difficulty === form.difficulty ||
       templates.every(t2 => t2.difficulty !== form.difficulty),
   )
+
+  // Deduplicate: group template IDs by display title so each unique topic
+  // shows exactly once in the list.
+  const uniqueTopics = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const tmpl of topicOptions) {
+      const ids = map.get(tmpl.title) ?? []
+      ids.push(tmpl.id)
+      map.set(tmpl.title, ids)
+    }
+    return Array.from(map.entries()).map(([title, ids]) => ({ title, ids }))
+  }, [topicOptions])
+
+  const filteredTopics = topicSearch.trim()
+    ? uniqueTopics.filter(t => t.title.toLowerCase().includes(topicSearch.toLowerCase()))
+    : uniqueTopics
+
+  // A group is checked when ALL its IDs are in template_ids
+  const isGroupChecked = (ids: string[]) =>
+    form.template_ids.length > 0 && ids.every(id => form.template_ids.includes(id))
+
+  const toggleGroup = (ids: string[]) =>
+    setForm(prev => {
+      const allOn = ids.every(id => prev.template_ids.includes(id))
+      return {
+        ...prev,
+        template_ids: allOn
+          ? prev.template_ids.filter(id => !ids.includes(id))
+          : [...prev.template_ids.filter(id => !ids.includes(id)), ...ids],
+      }
+    })
 
   // ── PDF mutation ───────────────────────────────────────────────────────────
   const blobUrlRef = useRef<string | null>(null)
@@ -249,20 +272,21 @@ export default function StudentPracticePDF() {
             <div className="space-y-2">
               {[1, 2, 3].map(i => <div key={i} className="h-9 bg-slate-100 rounded-lg animate-pulse" />)}
             </div>
-          ) : topicOptions.length === 0 ? (
+          ) : uniqueTopics.length === 0 ? (
             <p className="text-sm text-slate-400 px-1">{t('practicePdf.noTopics')}</p>
           ) : (
             <>
+              {/* Header row: selection count + select-all/clear */}
               <div className="flex items-center gap-2 mb-2 text-xs text-slate-500">
                 <span className="font-medium">
                   {form.template_ids.length === 0
                     ? t('practicePdf.allTopics')
-                    : t('practicePdf.selectedTopics', { count: form.template_ids.length })}
+                    : t('practicePdf.selectedTopics', { count: uniqueTopics.filter(g => isGroupChecked(g.ids)).length })}
                 </span>
                 <div className="flex gap-2 ml-auto">
                   <button
                     type="button"
-                    onClick={() => set('template_ids', topicOptions.map(t => t.id))}
+                    onClick={() => set('template_ids', topicOptions.map(tmpl => tmpl.id))}
                     className="text-violet-600 hover:text-violet-800 font-medium underline underline-offset-2"
                   >
                     {t('practicePdf.selectAll')}
@@ -277,14 +301,28 @@ export default function StudentPracticePDF() {
                 </div>
               </div>
 
-              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
-                {topicOptions.map(tmpl => {
-                  const checked = form.template_ids.length === 0
-                    ? false
-                    : form.template_ids.includes(tmpl.id)
+              {/* Search box */}
+              <div className="relative mb-2">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={topicSearch}
+                  onChange={e => setTopicSearch(e.target.value)}
+                  placeholder={t('practicePdf.searchTopics', 'Поиск темы...')}
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200
+                             focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400"
+                />
+              </div>
+
+              {/* Deduplicated topic list */}
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
+                {filteredTopics.length === 0 ? (
+                  <p className="px-3 py-3 text-sm text-slate-400">{t('common.noResults', 'Ничего не найдено')}</p>
+                ) : filteredTopics.map(group => {
+                  const checked = isGroupChecked(group.ids)
                   return (
                     <label
-                      key={tmpl.id}
+                      key={group.title}
                       className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-violet-50 ${
                         checked ? 'bg-violet-50/60' : ''
                       }`}
@@ -292,10 +330,10 @@ export default function StudentPracticePDF() {
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleTemplate(tmpl.id)}
-                        className="w-4 h-4 rounded accent-violet-500"
+                        onChange={() => toggleGroup(group.ids)}
+                        className="w-4 h-4 rounded accent-violet-500 flex-shrink-0"
                       />
-                      <span className="text-sm text-slate-700 leading-snug">{tmpl.title}</span>
+                      <span className="text-sm text-slate-700 leading-snug">{group.title}</span>
                     </label>
                   )
                 })}

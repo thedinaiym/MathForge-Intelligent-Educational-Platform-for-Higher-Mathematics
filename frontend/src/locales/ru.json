@@ -521,6 +521,7 @@
     "selectedTopics": "Выбрано тем: {{count}}",
     "selectAll": "Выбрать все",
     "selectNone": "Снять выбор",
+    "searchTopics": "Поиск темы…",
     "stepCount": "Количество задач",
     "countHint": "Все задачи помещаются в одном PDF с полем для решения.",
     "problems": "задач",

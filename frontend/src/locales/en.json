@@ -520,6 +520,7 @@
     "selectedTopics": "{{count}} topic(s) selected",
     "selectAll": "Select all",
     "selectNone": "Clear",
+    "searchTopics": "Search topics…",
     "stepCount": "Number of Problems",
     "countHint": "All problems fit in a single PDF with full work space.",
     "problems": "problems",

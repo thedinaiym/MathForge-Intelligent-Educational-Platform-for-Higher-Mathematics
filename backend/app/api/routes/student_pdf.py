@@ -41,10 +41,13 @@ router = APIRouter()
 TOKEN_COST_STUDY_GUIDE = 3.0
 
 _DIFFICULTY_LABELS: dict[str, dict] = {
-    "en": {"easy": "Easy",    "medium": "Medium",   "hard": "Hard"},
-    "ru": {"easy": "Лёгкий",  "medium": "Средний",  "hard": "Сложный"},
-    "kg": {"easy": "Жеңил",   "medium": "Орто",     "hard": "Кыйын"},
+    "en": {"easy": "Easy",   "medium": "Medium",  "hard": "Hard"},
+    "ru": {"easy": "Easy",   "medium": "Medium",  "hard": "Hard"},
 }
+
+# pdflatex+T2A encoding does not support Kyrgyz-specific letters (Ng, Ue, barred-O).
+# For PDF content we silently fall back to Russian so LaTeX never sees them.
+_PDF_LOCALE: dict[str, str] = {"kg": "ru"}
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
@@ -109,6 +112,9 @@ async def generate_study_guide_pdf(
     """
     user_id = uuid.UUID(current_user.sub)
 
+    # pdflatex/T2A can't render Kyrgyz-specific letters → use Russian for PDF content.
+    pdf_locale = _PDF_LOCALE.get(locale, locale)
+
     # ── 1. Deduct tokens first ────────────────────────────────────────────────
     await _deduct_tokens(user_id, TOKEN_COST_STUDY_GUIDE, db)
 
@@ -134,22 +140,23 @@ async def generate_study_guide_pdf(
         )
 
     # ── 3. Generate tasks ─────────────────────────────────────────────────────
+    import random as _random
+    templates_list = list(templates)
+    _random.shuffle(templates_list)
     generated: list[dict] = []
-    for i in range(min(payload.count, len(templates) * 10)):
-        tmpl = templates[i % len(templates)]
+    for i in range(min(payload.count, len(templates_list) * 10)):
+        tmpl = templates_list[i % len(templates_list)]
         try:
-            task = TaskGenerator.generate(tmpl.template_json, locale=locale)
+            task = TaskGenerator.generate(tmpl.template_json, locale=pdf_locale)
             generated.append({
                 "question_text":   task.get("question_text", ""),
                 "condition_latex": task.get("condition_latex", ""),
                 "answer_latex":    task.get("answer_latex", ""),
             })
         except Exception as e:
-            # === ПЕРЕХВАТ ОШИБОК ОТ SymPy И Groq ===
             print(f"🔥 ОШИБКА ГЕНЕРАЦИИ (Шаблон {tmpl.id}): {str(e)}", flush=True)
             print(traceback.format_exc(), flush=True)
             continue
-            # =======================================
 
     if not generated:
         raise HTTPException(
@@ -163,11 +170,11 @@ async def generate_study_guide_pdf(
     # ── 4. Resolve category name for the title ────────────────────────────────
     cat_result = await db.execute(select(Category).where(Category.id == payload.category_id))
     category = cat_result.scalar_one_or_none()
-    category_name = category.get_name(locale) if category else "Study Guide"
+    category_name = category.get_name(pdf_locale) if category else "Study Guide"
 
-    diff_labels = _DIFFICULTY_LABELS.get(locale, _DIFFICULTY_LABELS["ru"])
+    diff_labels = _DIFFICULTY_LABELS.get(pdf_locale, _DIFFICULTY_LABELS["en"])
     difficulty_label = diff_labels.get(payload.difficulty, payload.difficulty.capitalize())
-    title = f"{category_name} — {difficulty_label}"
+    title = f"{category_name} / {difficulty_label}"
 
     # ── 5. Compile PDF ────────────────────────────────────────────────────────
     try:
@@ -175,7 +182,7 @@ async def generate_study_guide_pdf(
             title=title,
             tasks=generated,
             difficulty_label=difficulty_label,
-            locale=locale,
+            locale=pdf_locale,
         )
     except Exception as exc: 
         # === ПЕРЕХВАТ ОШИБОК ОТ Jinja2 И pdflatex ===
