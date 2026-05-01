@@ -47,7 +47,10 @@
     "institution": "Окуу / иш орду",
     "institutionPlaceholder": "Университет, мектеп же уюм",
     "backToHome": "Башкы бетке",
-    "continueWith": "же улантуу"
+    "continueWith": "же улантуу",
+    "webViewTitle": "Браузерде ачыңыз",
+    "webViewBody": "Google колдонмолордун ичинде (Telegram, Instagram) кирүүгө уруксат бербейт. Chrome же Safari'де ачуу үчүн басыңыз.",
+    "webViewOpen": "Браузерде ачуу"
   },
   "home": {
     "hero": "ЖИ менен акылдуу математика окутуу",

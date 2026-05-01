@@ -47,7 +47,10 @@
     "continueWith": "or continue with",
     "phoneNumber": "Phone Number",
     "institution": "Place of Work / Study",
-    "institutionPlaceholder": "University, school or organisation"
+    "institutionPlaceholder": "University, school or organisation",
+    "webViewTitle": "Open in your browser",
+    "webViewBody": "Google doesn't allow sign-in inside apps like Telegram or Instagram. Tap below to open the login page in Chrome or Safari.",
+    "webViewOpen": "Open in browser"
   },
   "home": {
     "hero": "AI-Powered Math Learning",

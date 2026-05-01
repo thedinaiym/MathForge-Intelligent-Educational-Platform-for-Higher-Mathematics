@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Brain, ArrowLeft } from 'lucide-react'
+import { Brain, ArrowLeft, ExternalLink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'signin' | 'signup'
+
+// ── WebView detection ─────────────────────────────────────────────────────────
+// Google blocks OAuth (error 403 disallowed_useragent) in all embedded browsers.
+
+function isWebView(): boolean {
+  const ua = navigator.userAgent
+  return (
+    /Instagram|FBAN|FBAV|Twitter|Snapchat|TikTok|Line\/|MicroMessenger|Telegram/i.test(ua) ||
+    (/Android/.test(ua) && /wv/.test(ua)) ||                           // Android WebView
+    (/iPhone|iPad/.test(ua) && !/Safari\//.test(ua) && /AppleWebKit/.test(ua)) // iOS non-Safari
+  )
+}
 
 // ── SVG icons (avoid deprecated lucide-react Github export) ──────────────────
 
@@ -118,6 +130,7 @@ export default function AuthPage() {
   const { user } = useAuthStore()
   const [tab, setTab] = useState<Tab>('signin')
   const [loading, setLoading] = useState(false)
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) navigate('/app/profile', { replace: true })
@@ -132,6 +145,18 @@ export default function AuthPage() {
   }
 
   const handleGoogle = async () => {
+    if (isWebView()) {
+      // Get the OAuth URL without redirecting — let user open it in system browser
+      const { data } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+          skipBrowserRedirect: true,
+        },
+      })
+      if (data?.url) setWebViewUrl(data.url)
+      return
+    }
     setLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -141,6 +166,48 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50/30 to-slate-100 flex flex-col">
+
+      {/* ── WebView blocker modal ────────────────────────────────────────────── */}
+      {webViewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60"
+          onClick={() => setWebViewUrl(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <ExternalLink size={18} className="text-red-500" />
+              </div>
+              <p className="font-semibold text-slate-800 text-sm leading-snug">
+                {t('auth.webViewTitle')}
+              </p>
+            </div>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+              {t('auth.webViewBody')}
+            </p>
+            <a
+              href={webViewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl
+                         bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm
+                         transition-colors"
+            >
+              <ExternalLink size={15} />
+              {t('auth.webViewOpen')}
+            </a>
+            <button
+              onClick={() => setWebViewUrl(null)}
+              className="mt-2 w-full py-2 text-slate-400 hover:text-slate-600 text-sm transition-colors"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-6 py-4">
