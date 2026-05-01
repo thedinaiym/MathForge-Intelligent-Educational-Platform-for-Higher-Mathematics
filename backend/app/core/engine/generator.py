@@ -35,13 +35,13 @@ class TaskGenerator:
             # ── condition_latex & answer_latex ─────────────────────────────────
             equation_rhs = template_json.get("equation_rhs")
 
-            if equation_rhs is not None:
+            if equation_rhs is not None and final_expr.free_symbols:
                 # Equation-solving task: produce "lhs = rhs" and solve for x.
-                # NOTE: no $ wrappers — LaTeX templates already put these in math mode.
+                # Only when final_expr still has symbolic unknowns (e.g. x).
+                # If all variables were substituted to a number, fall through to evaluation.
                 rhs_expr = sp.sympify(str(equation_rhs), locals=_SAFE_LOCALS)
                 condition_latex = f"{sp.latex(final_expr)} = {sp.latex(rhs_expr)}"
 
-                # Try to solve the equation for x symbolically.
                 try:
                     x = sp.Symbol("x")
                     solutions = sp.solve(sp.Eq(final_expr, rhs_expr), x)
@@ -55,8 +55,7 @@ class TaskGenerator:
                 except Exception:
                     answer_latex = sp.latex(sp.simplify(final_expr))
             else:
-                # Evaluation / simplification task: show the computed value.
-                # NOTE: no $ wrappers — LaTeX templates already put these in math mode.
+                # Evaluation / simplification task (no unknowns left, or no equation_rhs).
                 condition_latex = sp.latex(final_expr)
                 answer_latex = sp.latex(sp.simplify(final_expr))
 

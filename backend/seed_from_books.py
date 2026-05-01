@@ -168,6 +168,11 @@ def build_db_row(tmpl: dict, source_pdf: str) -> dict | None:
         print(f"  [skip] Missing required fields in: {topic!r}")
         return None
 
+    # Only mark as equation-solving if the question explicitly asks to "solve" / "find x".
+    _solve_keywords = ("решите", "найдите x", "solve", "find x", "чечиңиз", "табыңыз x")
+    is_equation = any(kw in cond_ru.lower() or kw in cond_en.lower() for kw in _solve_keywords)
+    equation_rhs = "0" if is_equation else None
+
     return {
         "id":         str(uuid.uuid4()),
         "category_id": category_id,
@@ -181,7 +186,7 @@ def build_db_row(tmpl: dict, source_pdf: str) -> dict | None:
         "template_json": {
             "topic":           topic.lower().replace(" ", "_"),
             "sympy_expr":      formula,
-            "equation_rhs":    "0",
+            "equation_rhs":    equation_rhs,
             "ranges":          {"A": [1, 10], "B": [-10, 10], "C": [-10, 10], "N": [1, 5]},
             "constraints":     [],
             "texts": {
