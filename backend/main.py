@@ -115,22 +115,30 @@ async def startup():
     except Exception as exc:
         print(f"⚠️  Seeding failed (non-fatal): {exc}")
 
-    # Auto-index templates into Qdrant after seeding (non-fatal)
+    # Auto-index templates into Qdrant — only when collection is empty.
+    # Qdrant persists data between restarts, so re-indexing 2 600+ docs every
+    # cold-start is unnecessary and adds ~30-60 s to startup time.
     try:
         from sqlalchemy import select
         from app.db.models import TaskTemplate
         from app.services.rag_service import rag_service
         if rag_service is not None:
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(select(TaskTemplate).where(TaskTemplate.is_active.is_(True)))
-                templates = result.scalars().all()
-                if templates:
-                    indexed = await rag_service.index_templates(list(templates))
-                    print(f"✅ RAG: indexed {indexed} templates into Qdrant.")
+            existing = rag_service._client.count("task_templates").count
+            if existing > 0:
+                print(f"⚡ RAG: collection already has {existing} vectors — skipping re-index.")
+            else:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(TaskTemplate).where(TaskTemplate.is_active.is_(True))
+                    )
+                    templates = result.scalars().all()
+                    if templates:
+                        indexed = await rag_service.index_templates(list(templates))
+                        print(f"✅ RAG: indexed {indexed} templates into Qdrant.")
         else:
             print("⚠️  RAG skipped — service unavailable (fastembed/Qdrant not ready).")
     except Exception as exc:
-        print(f"⚠️  RAG indexing failed (non-fatal): {exc}")
+        print(f"⚠️  RAG indexing skipped (non-fatal): {exc}")
 
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
