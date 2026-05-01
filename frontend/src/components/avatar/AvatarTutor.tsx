@@ -261,6 +261,17 @@ function VRMAvatar({
         // VRM 0.x models face -Z; rotate so they face the camera (+Z)
         VRMUtils.rotateVRM0(loadedVrm)
 
+        // Relax arms from default T-pose to a natural idle position
+        const h = loadedVrm.humanoid
+        const leftArm  = h?.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperArm)
+        const rightArm = h?.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm)
+        const leftFore  = h?.getNormalizedBoneNode(VRMHumanBoneName.LeftLowerArm)
+        const rightFore = h?.getNormalizedBoneNode(VRMHumanBoneName.RightLowerArm)
+        if (leftArm)  leftArm.rotation.z  = -1.25   // bring left arm down
+        if (rightArm) rightArm.rotation.z =  1.25   // bring right arm down
+        if (leftFore)  leftFore.rotation.z  = -0.3  // slight forearm bend
+        if (rightFore) rightFore.rotation.z =  0.3
+
         vrmRef.current = loadedVrm
         setVrm(loadedVrm)
         onModelReady?.()

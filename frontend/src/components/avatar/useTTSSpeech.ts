@@ -18,7 +18,9 @@
  */
 import { useCallback, useRef, useState } from 'react'
 
-const TTS_BASE_URL = import.meta.env.VITE_TTS_URL ?? 'http://localhost:8001'
+// Use dedicated TTS service if set, otherwise fall back to the main API backend
+const _API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/api\/?$/, '') ?? 'http://localhost:8000'
+const TTS_BASE_URL = (import.meta.env.VITE_TTS_URL as string | undefined) ?? _API_BASE
 const TTS_TIMEOUT_MS = 10_000   // 10 s — abort and fall back to text-only
 
 export type TTSLanguage  = 'kg' | 'ru' | 'en'

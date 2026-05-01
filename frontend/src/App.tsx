@@ -166,11 +166,16 @@ function AuthSync() {
         // ── INITIAL_SESSION ──────────────────────────────────────────────
         if (event === 'INITIAL_SESSION') {
           if (session) {
-            // Normal page load with a live session.
+            // Check BEFORE cleanHash() erases it
+            const cameFromOAuth = window.location.hash.includes('access_token')
             await syncUser(displayName)
             cleanHash()
             clearTimeout(safetyTimer)
             markInitialized()
+            // After OAuth redirect the page is still at /auth — send to dashboard
+            if (cameFromOAuth || window.location.pathname === '/auth') {
+              navigate('/app/dashboard', { replace: true })
+            }
             return
           }
 
