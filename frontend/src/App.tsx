@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from './store/authStore'
 import { supabase } from './lib/supabase'
 import api from './lib/axios'
 import type { AuthUser } from './store/authStore'
+import RatingModal from './components/ui/RatingModal'
 
 import DashboardLayout from './components/layout/DashboardLayout'
 import HomePage from './pages/HomePage'
@@ -276,10 +277,35 @@ function AuthSync() {
 
   return null
 }
+/** Shows the rating modal once per user, 4 s after first login. */
+function RatingPrompt() {
+  const { user } = useAuthStore()
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    const key = `mathforge_rated_${user.id}`
+    if (localStorage.getItem(key)) return
+    const timer = setTimeout(() => setShow(true), 4_000)
+    return () => clearTimeout(timer)
+  }, [user])
+
+  if (!show || !user) return null
+
+  function close() {
+    if (!user) return
+    localStorage.setItem(`mathforge_rated_${user.id}`, '1')
+    setShow(false)
+  }
+
+  return <RatingModal onClose={close} />
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthSync />
+      <RatingPrompt />
       <Routes>
         {/* Public */}
         <Route path="/" element={<HomePage />} />
