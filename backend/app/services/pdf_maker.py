@@ -27,7 +27,6 @@ import jinja2
 
 # ── LaTeX text-mode escaping ─────────────────────────────────────────────────
 
-_LATEX_SPECIAL = re.compile(r'([\\%$&#^_{}~])')
 _LATEX_REPLACE = {
     '\\': r'\textbackslash{}',
     '%':  r'\%',
@@ -41,11 +40,60 @@ _LATEX_REPLACE = {
     '~':  r'\textasciitilde{}',
 }
 
+# Unicode math symbols → LaTeX equivalents safe in text mode via \ensuremath{}
+_UNICODE_MATH = {
+    '√':  r'\ensuremath{\surd}',
+    '∛':  r'\ensuremath{\sqrt[3]{\cdot}}',
+    '≤':  r'\ensuremath{\leq}',
+    '≥':  r'\ensuremath{\geq}',
+    '≠':  r'\ensuremath{\neq}',
+    '≈':  r'\ensuremath{\approx}',
+    '∞':  r'\ensuremath{\infty}',
+    '±':  r'\ensuremath{\pm}',
+    '×':  r'\ensuremath{\times}',
+    '÷':  r'\ensuremath{\div}',
+    '·':  r'\ensuremath{\cdot}',
+    'π':  r'\ensuremath{\pi}',
+    'α':  r'\ensuremath{\alpha}',
+    'β':  r'\ensuremath{\beta}',
+    'γ':  r'\ensuremath{\gamma}',
+    'θ':  r'\ensuremath{\theta}',
+    'λ':  r'\ensuremath{\lambda}',
+    'μ':  r'\ensuremath{\mu}',
+    'σ':  r'\ensuremath{\sigma}',
+    'φ':  r'\ensuremath{\varphi}',
+    'ω':  r'\ensuremath{\omega}',
+    '°':  r'\ensuremath{{}^{\circ}}',
+    '²':  r'\ensuremath{{}^{2}}',
+    '³':  r'\ensuremath{{}^{3}}',
+    '¹':  r'\ensuremath{{}^{1}}',
+    '½':  r'\ensuremath{\tfrac{1}{2}}',
+    '¼':  r'\ensuremath{\tfrac{1}{4}}',
+    '¾':  r'\ensuremath{\tfrac{3}{4}}',
+    '∑':  r'\ensuremath{\sum}',
+    '∏':  r'\ensuremath{\prod}',
+    '∫':  r'\ensuremath{\int}',
+    '∂':  r'\ensuremath{\partial}',
+    '∇':  r'\ensuremath{\nabla}',
+    '∈':  r'\ensuremath{\in}',
+    '∉':  r'\ensuremath{\notin}',
+    '⊂':  r'\ensuremath{\subset}',
+    '⊃':  r'\ensuremath{\supset}',
+    '∩':  r'\ensuremath{\cap}',
+    '∪':  r'\ensuremath{\cup}',
+    '∅':  r'\ensuremath{\emptyset}',
+    '→':  r'\ensuremath{\to}',
+    '←':  r'\ensuremath{\leftarrow}',
+    '↔':  r'\ensuremath{\leftrightarrow}',
+    '⇒':  r'\ensuremath{\Rightarrow}',
+    '⇔':  r'\ensuremath{\Leftrightarrow}',
+}
+
 
 def _latex_escape(text: str) -> str:
     """
-    Escape LaTeX special characters in plain text that will be rendered
-    outside math mode (question titles, header labels, etc.).
+    Escape LaTeX special characters and Unicode math symbols in plain text
+    rendered outside math mode (question titles, header labels, etc.).
 
     Does NOT touch condition_latex / answer_latex — those are already
     valid LaTeX math and must not be double-escaped.
@@ -57,6 +105,9 @@ def _latex_escape(text: str) -> str:
     for ch, repl in _LATEX_REPLACE.items():
         if ch != '\\':
             result = result.replace(ch, repl)
+    # Replace Unicode math symbols with LaTeX \ensuremath{} equivalents.
+    for ch, repl in _UNICODE_MATH.items():
+        result = result.replace(ch, repl)
     return result
 
 

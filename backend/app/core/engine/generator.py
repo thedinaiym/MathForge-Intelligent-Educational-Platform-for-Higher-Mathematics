@@ -87,7 +87,12 @@ class TaskGenerator:
         # Compile constraints once as Python bytecode — 50-100× faster than SymPy subs()
         # Constraints are our own seed strings (not user input), so eval is safe.
         _safe = {"__builtins__": {}, "abs": abs}
-        compiled = [compile(c, "<constraint>", "eval") for c in constraints]
+        compiled = []
+        for c in constraints:
+            try:
+                compiled.append(compile(c, "<constraint>", "eval"))
+            except SyntaxError as exc:
+                raise ValueError(f"Invalid constraint expression {c!r}: {exc}") from exc
 
         for _ in range(200):
             subs = {var: random.randint(r[0], r[1]) for var, r in ranges.items()}
