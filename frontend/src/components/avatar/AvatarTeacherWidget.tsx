@@ -73,7 +73,19 @@ export default function AvatarTeacherWidget() {
 
       setMessages(prev => [...prev, { role: 'aida', content: data.explanation }])
       const ttsOk = await speakTimed(data.explanation, lang, 'female')
-      setPhase(ttsOk ? 'speaking' : 'idle')
+      if (ttsOk) {
+        setPhase('speaking')
+      } else if ('speechSynthesis' in window) {
+        setPhase('speaking')
+        const utt = new SpeechSynthesisUtterance(data.explanation)
+        utt.lang = ({ kg: 'ru-RU', ru: 'ru-RU', en: 'en-US' } as Record<string, string>)[lang] ?? 'ru-RU'
+        utt.onend = () => setPhase('idle')
+        utt.onerror = () => setPhase('idle')
+        window.speechSynthesis.cancel()
+        window.speechSynthesis.speak(utt)
+      } else {
+        setPhase('idle')
+      }
     } catch (err) {
       console.error('[AvatarTeacherWidget]', err)
       setMessages(prev => [...prev, { role: 'aida', content: t('avatar.error') }])

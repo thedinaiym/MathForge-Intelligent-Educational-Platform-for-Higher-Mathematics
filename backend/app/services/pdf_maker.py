@@ -18,11 +18,47 @@ All blocking I/O runs in a thread-pool executor — never blocks the async loop.
 from __future__ import annotations
 
 import asyncio
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
 import jinja2
+
+# ── LaTeX text-mode escaping ─────────────────────────────────────────────────
+
+_LATEX_SPECIAL = re.compile(r'([\\%$&#^_{}~])')
+_LATEX_REPLACE = {
+    '\\': r'\textbackslash{}',
+    '%':  r'\%',
+    '$':  r'\$',
+    '&':  r'\&',
+    '#':  r'\#',
+    '^':  r'\textasciicircum{}',
+    '_':  r'\_',
+    '{':  r'\{',
+    '}':  r'\}',
+    '~':  r'\textasciitilde{}',
+}
+
+
+def _latex_escape(text: str) -> str:
+    """
+    Escape LaTeX special characters in plain text that will be rendered
+    outside math mode (question titles, header labels, etc.).
+
+    Does NOT touch condition_latex / answer_latex — those are already
+    valid LaTeX math and must not be double-escaped.
+    """
+    if not text:
+        return ''
+    # Replace backslash first (otherwise we'd double-escape later substitutions).
+    result = text.replace('\\', r'\textbackslash{}')
+    for ch, repl in _LATEX_REPLACE.items():
+        if ch != '\\':
+            result = result.replace(ch, repl)
+    return result
+
 
 # ── Jinja2 environment ────────────────────────────────────────────────────────
 
@@ -140,34 +176,34 @@ async def compile_study_guide_to_pdf(
             "condition_label": "Условие",
             "answer_label":   "Ответ",
         },
+        # Note: 'kg' locale is mapped to 'ru' in student_pdf.py before reaching here.
+        # This entry is kept as a safety fallback only.
         "kg": {
-            "task_word":      "маселе",
-            "instructions":   (
-                "Ар бир тапшырманы берилген жерде чечиңиз. "
-                "Жооптор акыркы бетте — "
-                "бардык тапшырмаларды чечкенден кийин гана аны ачыңыз."
-            ),
-            "answers_title":  "Жооптор жана чечимдер",
-            "condition_label": "Шарт",
-            "answer_label":   "Жооп",
+            "task_word":       "tasks",
+            "instructions":    "Solve each problem in the space provided.",
+            "answers_title":   "Answer Key",
+            "condition_label": "Problem",
+            "answer_label":    "Answer",
         },
     }
     lbl = _LABELS.get(locale, _LABELS["ru"])
 
     task_entries = [
         {
-            "title":           t.get("question_text", ""),
-            "condition_latex": t.get("condition_latex", ""),
-            "answer_latex":    t.get("answer_latex", r"\text{—}"),
+            # question_text goes into LaTeX text-mode (\textbf{}) → must be escaped.
+            "title":           _latex_escape(t.get("question_text", "")),
+            # condition_latex / answer_latex are SymPy-generated LaTeX math → no escaping.
+            "condition_latex": t.get("condition_latex", "") or r"0",
+            "answer_latex":    t.get("answer_latex", "") or r"\text{---}",
         }
         for t in tasks
     ]
 
     context = {
-        "title":          title,
-        "count":          len(task_entries),
-        "difficulty_label": difficulty_label,
-        "tasks":          task_entries,
+        "title":            _latex_escape(title),
+        "count":            len(task_entries),
+        "difficulty_label": _latex_escape(difficulty_label),
+        "tasks":            task_entries,
         **lbl,
     }
 

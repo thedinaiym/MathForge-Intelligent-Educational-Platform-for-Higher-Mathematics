@@ -115,10 +115,7 @@ async def generate_study_guide_pdf(
     # pdflatex/T2A can't render Kyrgyz-specific letters → use Russian for PDF content.
     pdf_locale = _PDF_LOCALE.get(locale, locale)
 
-    # ── 1. Deduct tokens first ────────────────────────────────────────────────
-    await _deduct_tokens(user_id, TOKEN_COST_STUDY_GUIDE, db)
-
-    # ── 2. Fetch matching templates ───────────────────────────────────────────
+    # ── 1. Fetch templates (before deducting tokens) ──────────────────────────
     filters = [
         TaskTemplate.category_id == payload.category_id,
         TaskTemplate.difficulty  == payload.difficulty,
@@ -139,7 +136,9 @@ async def generate_study_guide_pdf(
             ),
         )
 
-    # ── 3. Generate tasks ─────────────────────────────────────────────────────
+    # ── 2. Generate tasks (before deducting tokens) ───────────────────────────
+    # Tokens are charged only after we confirm at least one task generates
+    # successfully — prevents charging users when all templates are broken.
     import random as _random
     templates_list = list(templates)
     _random.shuffle(templates_list)
@@ -154,18 +153,26 @@ async def generate_study_guide_pdf(
                 "answer_latex":    task.get("answer_latex", ""),
             })
         except Exception as e:
-            print(f"🔥 ОШИБКА ГЕНЕРАЦИИ (Шаблон {tmpl.id}): {str(e)}", flush=True)
-            print(traceback.format_exc(), flush=True)
+            # Log once per template type (strip traceback for LaTeX-notation errors)
+            short_err = str(e)[:200]
+            print(f"[skip] Template {tmpl.id}: {short_err}", flush=True)
             continue
 
     if not generated:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Task generation failed. Check that template constraints are satisfiable.",
+            detail=(
+                "Task generation failed for all matching templates. "
+                "The templates may contain invalid SymPy expressions. "
+                "Run validate_templates.py to disable broken templates."
+            ),
         )
 
     # Cap to requested count
     generated = generated[: payload.count]
+
+    # ── 3. Deduct tokens now that we have real tasks ───────────────────────────
+    await _deduct_tokens(user_id, TOKEN_COST_STUDY_GUIDE, db)
 
     # ── 4. Resolve category name for the title ────────────────────────────────
     cat_result = await db.execute(select(Category).where(Category.id == payload.category_id))

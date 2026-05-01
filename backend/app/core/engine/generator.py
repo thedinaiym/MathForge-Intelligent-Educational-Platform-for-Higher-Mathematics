@@ -1,8 +1,13 @@
+import re
 import random
 import sympy as sp
 
 # Protect single-letter SymPy builtins from being interpreted as functions/constants
 _SAFE_LOCALS = {name: sp.Symbol(name) for name in ['N', 'I', 'E', 'O', 'S', 'C', 'Q']}
+
+# Detects LaTeX-notation expressions the LLM sometimes emits instead of Python/SymPy.
+# e.g.  \varphi, \partial, \frac{A}{B}  →  not parseable by SymPy.
+_LATEX_EXPR_RE = re.compile(r'\\[a-zA-Z]')
 
 
 class TaskGenerator:
@@ -15,6 +20,14 @@ class TaskGenerator:
         # {A} is a Python set in SymPy — strip braces before parsing.
         sympy_expr_str = sympy_expr_str.replace("{", "").replace("}", "")
         topic = template_json.get("topic", "")
+
+        # Reject LaTeX-notation expressions early (e.g. \varphi, \partial).
+        # These cannot be parsed by SymPy and would produce a noisy stack trace.
+        if _LATEX_EXPR_RE.search(sympy_expr_str):
+            raise RuntimeError(
+                f"sympy_expr contains LaTeX notation which SymPy cannot parse: "
+                f"{sympy_expr_str!r:.120}"
+            )
 
         coeffs = TaskGenerator._sample_coefficients(ranges, constraints)
 

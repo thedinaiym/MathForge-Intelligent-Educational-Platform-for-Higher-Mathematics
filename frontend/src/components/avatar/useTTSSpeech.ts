@@ -21,7 +21,7 @@ import { useCallback, useRef, useState } from 'react'
 // Use dedicated TTS service if set, otherwise fall back to the main API backend
 const _API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/api\/?$/, '') ?? 'http://localhost:8000'
 const TTS_BASE_URL = (import.meta.env.VITE_TTS_URL as string | undefined) ?? _API_BASE
-const TTS_TIMEOUT_MS = 10_000   // 10 s — abort and fall back to text-only
+const TTS_TIMEOUT_MS = 30_000   // 30 s — edge-tts can be slow on cold start
 
 export type TTSLanguage  = 'kg' | 'ru' | 'en'
 export type TTSVoiceType = 'male' | 'female'

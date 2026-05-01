@@ -115,6 +115,8 @@ export default function GeoGebraWidget({
     if (injectedRef.current) return   // already injected in this mount
     injectedRef.current = true
 
+    let readyTimeout: ReturnType<typeof setTimeout> | null = null
+
     loadDeployScript()
       .then(() => {
         if (!window.GGBApplet) {
@@ -147,11 +149,24 @@ export default function GeoGebraWidget({
 
         // Register the ready callback on window
         ;(window as any)[`__ggb_ready_${uid}`] = () => {
+          if (readyTimeout) clearTimeout(readyTimeout)
           setStatus('ready')
           onReady?.()
-          // Clean up the global
           delete (window as any)[`__ggb_ready_${uid}`]
         }
+
+        // Fallback: if the ready callback never fires (known GeoGebra quirk),
+        // check after 30 s whether the applet injected content and mark ready.
+        readyTimeout = setTimeout(() => {
+          delete (window as any)[`__ggb_ready_${uid}`]
+          const container = document.getElementById(containerId)
+          if (container && container.childNodes.length > 0) {
+            setStatus('ready')
+          } else {
+            setErrorMsg('GeoGebra did not initialise in 30 s. Check your internet connection.')
+            setStatus('error')
+          }
+        }, 30_000)
 
         const applet = new window.GGBApplet!(params, true)
         applet.inject(containerId)
@@ -163,7 +178,7 @@ export default function GeoGebraWidget({
 
     // Cleanup: nothing to destroy (GeoGebra has no public destroy API in Math Apps bundle)
     return () => {
-      // Remove the ready-callback if unmounted before it fires
+      if (readyTimeout) clearTimeout(readyTimeout)
       delete (window as any)[`__ggb_ready_${uid}`]
     }
   }, []) // intentionally empty: initialise once per mount

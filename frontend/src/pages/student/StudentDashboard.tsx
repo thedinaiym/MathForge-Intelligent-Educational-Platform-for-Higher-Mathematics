@@ -26,6 +26,8 @@ interface OrtComparisonProblem {
   given: string
   col_a_label: string
   col_b_label: string
+  col_a_value: string
+  col_b_value: string
   answer_label: string
 }
 
@@ -180,12 +182,22 @@ function OrtPart1Display({
                 <div className="text-sm font-medium">
                   <RenderLatex text={p.col_a_label} />
                 </div>
+                {p.col_a_value && (
+                  <div className="text-xs text-slate-400 mt-1">
+                    = <InlineMath math={p.col_a_value} />
+                  </div>
+                )}
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                 <div className="text-xs font-semibold text-slate-500 mb-1">{t('student.ort.colB')}</div>
                 <div className="text-sm font-medium">
                   <RenderLatex text={p.col_b_label} />
                 </div>
+                {p.col_b_value && (
+                  <div className="text-xs text-slate-400 mt-1">
+                    = <InlineMath math={p.col_b_value} />
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
