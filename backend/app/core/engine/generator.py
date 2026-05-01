@@ -11,6 +11,9 @@ class TaskGenerator:
         ranges = template_json.get("ranges", {})
         constraints = template_json.get("constraints", [])
         sympy_expr_str = template_json.get("sympy_expr", "0")
+        # LLM sometimes wraps parameters in {A} instead of plain A.
+        # {A} is a Python set in SymPy — strip braces before parsing.
+        sympy_expr_str = sympy_expr_str.replace("{", "").replace("}", "")
         topic = template_json.get("topic", "")
 
         coeffs = TaskGenerator._sample_coefficients(ranges, constraints)
