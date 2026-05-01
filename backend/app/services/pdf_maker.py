@@ -112,7 +112,9 @@ def _compile_sync(latex_source: str) -> bytes:
                 cwd=tmpdir,
                 capture_output=True,
                 text=True,
-                timeout=120,  # MiKTeX may download packages on first run
+                encoding="utf-8",
+                errors="replace",   # pdflatex logs are Latin-1, not UTF-8
+                timeout=120,        # MiKTeX may download packages on first run
             )
         except FileNotFoundError as exc:
             raise RuntimeError(
