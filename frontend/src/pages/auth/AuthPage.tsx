@@ -131,6 +131,26 @@ export default function AuthPage() {
   const [tab, setTab] = useState<Tab>('signin')
   const [loading, setLoading] = useState(false)
   const [webViewUrl, setWebViewUrl] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    if (!webViewUrl) return
+    try {
+      await navigator.clipboard.writeText(webViewUrl)
+    } catch {
+      // fallback for older WebViews
+      const ta = document.createElement('textarea')
+      ta.value = webViewUrl
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
 
   useEffect(() => {
     if (user) navigate('/app/profile', { replace: true })
@@ -188,17 +208,21 @@ export default function AuthPage() {
             <p className="text-sm text-slate-500 mb-4 leading-relaxed">
               {t('auth.webViewBody')}
             </p>
-            <a
-              href={webViewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            {/* Copy link — works even when Telegram intercepts target="_blank" */}
+            <button
+              onClick={handleCopy}
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl
                          bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm
                          transition-colors"
             >
               <ExternalLink size={15} />
-              {t('auth.webViewOpen')}
-            </a>
+              {copied ? t('auth.webViewCopied') : t('auth.webViewCopy')}
+            </button>
+            {copied && (
+              <p className="text-center text-xs text-slate-500 mt-2">
+                {t('auth.webViewCopiedHint')}
+              </p>
+            )}
             <button
               onClick={() => setWebViewUrl(null)}
               className="mt-2 w-full py-2 text-slate-400 hover:text-slate-600 text-sm transition-colors"

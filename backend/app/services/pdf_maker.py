@@ -42,52 +42,138 @@ _LATEX_REPLACE = {
 
 # Unicode math symbols → LaTeX equivalents safe in text mode via \ensuremath{}
 _UNICODE_MATH = {
-    '√':  r'\ensuremath{\surd}',
+    # Roots
+    '√':  r'\ensuremath{\sqrt{\cdot}}',
     '∛':  r'\ensuremath{\sqrt[3]{\cdot}}',
+    # Comparisons
     '≤':  r'\ensuremath{\leq}',
     '≥':  r'\ensuremath{\geq}',
     '≠':  r'\ensuremath{\neq}',
     '≈':  r'\ensuremath{\approx}',
+    '≡':  r'\ensuremath{\equiv}',
+    '≢':  r'\ensuremath{\not\equiv}',
+    '≃':  r'\ensuremath{\simeq}',
+    '≅':  r'\ensuremath{\cong}',
+    '≺':  r'\ensuremath{\prec}',
+    '≻':  r'\ensuremath{\succ}',
+    '≼':  r'\ensuremath{\preceq}',
+    '≽':  r'\ensuremath{\succeq}',
+    '∝':  r'\ensuremath{\propto}',
+    '∼':  r'\ensuremath{\sim}',
+    # Arithmetic
     '∞':  r'\ensuremath{\infty}',
     '±':  r'\ensuremath{\pm}',
+    '∓':  r'\ensuremath{\mp}',
     '×':  r'\ensuremath{\times}',
     '÷':  r'\ensuremath{\div}',
     '·':  r'\ensuremath{\cdot}',
+    # Logic & quantifiers
+    '∀':  r'\ensuremath{\forall}',
+    '∃':  r'\ensuremath{\exists}',
+    '∄':  r'\ensuremath{\nexists}',
+    '∧':  r'\ensuremath{\wedge}',
+    '∨':  r'\ensuremath{\vee}',
+    '¬':  r'\ensuremath{\neg}',
+    # Sets
+    '∈':  r'\ensuremath{\in}',
+    '∉':  r'\ensuremath{\notin}',
+    '⊂':  r'\ensuremath{\subset}',
+    '⊃':  r'\ensuremath{\supset}',
+    '⊆':  r'\ensuremath{\subseteq}',
+    '⊇':  r'\ensuremath{\supseteq}',
+    '∩':  r'\ensuremath{\cap}',
+    '∪':  r'\ensuremath{\cup}',
+    '∅':  r'\ensuremath{\emptyset}',
+    # Number sets (blackboard bold — requires amssymb)
+    'ℝ':  r'\ensuremath{\mathbb{R}}',
+    'ℤ':  r'\ensuremath{\mathbb{Z}}',
+    'ℕ':  r'\ensuremath{\mathbb{N}}',
+    'ℚ':  r'\ensuremath{\mathbb{Q}}',
+    'ℂ':  r'\ensuremath{\mathbb{C}}',
+    # Calculus & analysis
+    '∑':  r'\ensuremath{\sum}',
+    '∏':  r'\ensuremath{\prod}',
+    '∫':  r'\ensuremath{\int}',
+    '∬':  r'\ensuremath{\iint}',
+    '∭':  r'\ensuremath{\iiint}',
+    '∮':  r'\ensuremath{\oint}',
+    '∂':  r'\ensuremath{\partial}',
+    '∇':  r'\ensuremath{\nabla}',
+    '△':  r'\ensuremath{\triangle}',
+    '∆':  r'\ensuremath{\Delta}',
+    # Linear algebra
+    '‖':  r'\ensuremath{\|}',
+    '∥':  r'\ensuremath{\parallel}',
+    '⊥':  r'\ensuremath{\perp}',
+    '⊕':  r'\ensuremath{\oplus}',
+    '⊗':  r'\ensuremath{\otimes}',
+    # Geometry
+    '∠':  r'\ensuremath{\angle}',
+    '°':  r'\ensuremath{{}^{\circ}}',
+    # Arrows
+    '→':  r'\ensuremath{\to}',
+    '←':  r'\ensuremath{\leftarrow}',
+    '↔':  r'\ensuremath{\leftrightarrow}',
+    '↑':  r'\ensuremath{\uparrow}',
+    '↓':  r'\ensuremath{\downarrow}',
+    '⇒':  r'\ensuremath{\Rightarrow}',
+    '⇐':  r'\ensuremath{\Leftarrow}',
+    '⇔':  r'\ensuremath{\Leftrightarrow}',
+    # Misc
+    '∴':  r'\ensuremath{\therefore}',
+    '∵':  r'\ensuremath{\because}',
+    '′':  r'\ensuremath{{}^{\prime}}',
+    '″':  r'\ensuremath{{}^{\prime\prime}}',
+    # Greek — lowercase
     'π':  r'\ensuremath{\pi}',
     'α':  r'\ensuremath{\alpha}',
     'β':  r'\ensuremath{\beta}',
     'γ':  r'\ensuremath{\gamma}',
+    'δ':  r'\ensuremath{\delta}',
+    'ε':  r'\ensuremath{\varepsilon}',
+    'ζ':  r'\ensuremath{\zeta}',
+    'η':  r'\ensuremath{\eta}',
     'θ':  r'\ensuremath{\theta}',
+    'ι':  r'\ensuremath{\iota}',
+    'κ':  r'\ensuremath{\kappa}',
     'λ':  r'\ensuremath{\lambda}',
     'μ':  r'\ensuremath{\mu}',
+    'ν':  r'\ensuremath{\nu}',
+    'ξ':  r'\ensuremath{\xi}',
+    'ρ':  r'\ensuremath{\rho}',
     'σ':  r'\ensuremath{\sigma}',
+    'τ':  r'\ensuremath{\tau}',
+    'υ':  r'\ensuremath{\upsilon}',
     'φ':  r'\ensuremath{\varphi}',
+    'χ':  r'\ensuremath{\chi}',
+    'ψ':  r'\ensuremath{\psi}',
     'ω':  r'\ensuremath{\omega}',
-    '°':  r'\ensuremath{{}^{\circ}}',
+    # Greek — uppercase
+    'Γ':  r'\ensuremath{\Gamma}',
+    'Δ':  r'\ensuremath{\Delta}',
+    'Θ':  r'\ensuremath{\Theta}',
+    'Λ':  r'\ensuremath{\Lambda}',
+    'Ξ':  r'\ensuremath{\Xi}',
+    'Π':  r'\ensuremath{\Pi}',
+    'Σ':  r'\ensuremath{\Sigma}',
+    'Υ':  r'\ensuremath{\Upsilon}',
+    'Φ':  r'\ensuremath{\Phi}',
+    'Χ':  r'\ensuremath{\Chi}',
+    'Ψ':  r'\ensuremath{\Psi}',
+    'Ω':  r'\ensuremath{\Omega}',
+    # Superscripts / fractions
     '²':  r'\ensuremath{{}^{2}}',
     '³':  r'\ensuremath{{}^{3}}',
     '¹':  r'\ensuremath{{}^{1}}',
     '½':  r'\ensuremath{\tfrac{1}{2}}',
     '¼':  r'\ensuremath{\tfrac{1}{4}}',
     '¾':  r'\ensuremath{\tfrac{3}{4}}',
-    '∑':  r'\ensuremath{\sum}',
-    '∏':  r'\ensuremath{\prod}',
-    '∫':  r'\ensuremath{\int}',
-    '∂':  r'\ensuremath{\partial}',
-    '∇':  r'\ensuremath{\nabla}',
-    '∈':  r'\ensuremath{\in}',
-    '∉':  r'\ensuremath{\notin}',
-    '⊂':  r'\ensuremath{\subset}',
-    '⊃':  r'\ensuremath{\supset}',
-    '∩':  r'\ensuremath{\cap}',
-    '∪':  r'\ensuremath{\cup}',
-    '∅':  r'\ensuremath{\emptyset}',
-    '→':  r'\ensuremath{\to}',
-    '←':  r'\ensuremath{\leftarrow}',
-    '↔':  r'\ensuremath{\leftrightarrow}',
-    '⇒':  r'\ensuremath{\Rightarrow}',
-    '⇔':  r'\ensuremath{\Leftrightarrow}',
 }
+
+# Matches inline math segments in question text that LLMs sometimes emit.
+# These must be preserved verbatim (wrapped in $...$) instead of being escaped.
+# Patterns: $...$  |  ^{...}  |  _{...}  |  ^<digit>  |  _<digit>
+_INLINE_MATH_RE = re.compile(r'(\$[^$]+\$|[_^]\{[^}]*\}|[_^][0-9])')
 
 
 def _latex_escape(text: str) -> str:
@@ -95,20 +181,35 @@ def _latex_escape(text: str) -> str:
     Escape LaTeX special characters and Unicode math symbols in plain text
     rendered outside math mode (question titles, header labels, etc.).
 
+    Inline math notation that the LLM embeds in question_text (e.g. Ax^{2})
+    is preserved and wrapped in $...$ instead of being mangled by escaping.
+
     Does NOT touch condition_latex / answer_latex — those are already
     valid LaTeX math and must not be double-escaped.
     """
     if not text:
         return ''
-    # Replace backslash first (otherwise we'd double-escape later substitutions).
-    result = text.replace('\\', r'\textbackslash{}')
-    for ch, repl in _LATEX_REPLACE.items():
-        if ch != '\\':
-            result = result.replace(ch, repl)
-    # Replace Unicode math symbols with LaTeX \ensuremath{} equivalents.
-    for ch, repl in _UNICODE_MATH.items():
-        result = result.replace(ch, repl)
-    return result
+
+    # Split into alternating plain/math segments.
+    # Odd-indexed segments matched by _INLINE_MATH_RE are math; even are plain.
+    parts = _INLINE_MATH_RE.split(text)
+    result_parts: list[str] = []
+
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Math segment — wrap in $...$ if not already delimited
+            result_parts.append(part if part.startswith('$') else f'${part}$')
+        else:
+            # Plain text — full LaTeX escaping
+            p = part.replace('\\', r'\textbackslash{}')
+            for ch, repl in _LATEX_REPLACE.items():
+                if ch != '\\':
+                    p = p.replace(ch, repl)
+            for ch, repl in _UNICODE_MATH.items():
+                p = p.replace(ch, repl)
+            result_parts.append(p)
+
+    return ''.join(result_parts)
 
 
 # ── Jinja2 environment ────────────────────────────────────────────────────────

@@ -48,9 +48,12 @@
     "institutionPlaceholder": "Университет, школа или организация",
     "backToHome": "На главную",
     "continueWith": "или продолжить через",
-    "webViewTitle": "Откройте в браузере",
-    "webViewBody": "Google не разрешает вход через встроенный браузер. Нажмите кнопку ниже, чтобы открыть страницу входа в Chrome или Safari.",
-    "webViewOpen": "Открыть в браузере"
+    "webViewTitle": "Войдите через браузер",
+    "webViewBody": "Google блокирует вход из встроенных браузеров (Telegram, Instagram). Скопируйте ссылку и откройте её в Chrome или Safari.",
+    "webViewOpen": "Открыть в браузере",
+    "webViewCopy": "Скопировать ссылку",
+    "webViewCopied": "Скопировано!",
+    "webViewCopiedHint": "Вставьте ссылку в Chrome или Safari и войдите там."
   },
   "home": {
     "hero": "Умное обучение математике с ИИ",

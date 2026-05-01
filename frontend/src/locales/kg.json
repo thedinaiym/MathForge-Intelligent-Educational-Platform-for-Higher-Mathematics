@@ -48,9 +48,12 @@
     "institutionPlaceholder": "Университет, мектеп же уюм",
     "backToHome": "Башкы бетке",
     "continueWith": "же улантуу",
-    "webViewTitle": "Браузерде ачыңыз",
-    "webViewBody": "Google колдонмолордун ичинде (Telegram, Instagram) кирүүгө уруксат бербейт. Chrome же Safari'де ачуу үчүн басыңыз.",
-    "webViewOpen": "Браузерде ачуу"
+    "webViewTitle": "Браузер аркылуу кириңиз",
+    "webViewBody": "Google Telegram жана Instagram ичинен кирүүгө тыюу салат. Шилтемени көчүрүп, Chrome же Safari'де ачыңыз.",
+    "webViewOpen": "Браузерде ачуу",
+    "webViewCopy": "Шилтемени көчүрүү",
+    "webViewCopied": "Көчүрүлдү!",
+    "webViewCopiedHint": "Шилтемени Chrome же Safari'ге чаптап, ошол жерден кириңиз."
   },
   "home": {
     "hero": "ЖИ менен акылдуу математика окутуу",

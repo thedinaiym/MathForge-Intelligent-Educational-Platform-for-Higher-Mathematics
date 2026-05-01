@@ -10,6 +10,21 @@
 \usepackage{amssymb}
 \usepackage{geometry}
 
+% Графика и цвет (для логотипа)
+\usepackage{tikz}
+\usepackage{xcolor}
+\definecolor{mfamber}{RGB}{245,158,11}
+
+% MathForge logo — amber rounded box with stylised "MF"
+\newcommand{\MFLogo}{%
+  \tikz[baseline=-2pt,scale=1]{%
+    \fill[mfamber!20,rounded corners=2.5pt] (0,0) rectangle (13pt,13pt);%
+    \draw[mfamber,line width=0.55pt,rounded corners=2.5pt] (0,0) rectangle (13pt,13pt);%
+    \node[font=\bfseries\fontsize{5.5}{5.5}\selectfont,text=mfamber!80!black]
+      at (6.5pt,6.5pt) {MF};%
+  }%
+}
+
 % Настройка полей
 \geometry{top=2cm, bottom=2cm, left=2cm, right=2cm}
 
@@ -17,7 +32,7 @@
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
-\lhead{\textbf{MathForge}}
+\lhead{\MFLogo\enspace\textbf{MathForge}}
 \rhead{\small\textit{\VAR{title}}}
 \cfoot{\thepage}
 
@@ -25,7 +40,8 @@
 
 % --- ЗАГОЛОВОК ---
 \begin{center}
-    \LARGE \textbf{\VAR{title}} \\[0.5cm]
+    {\MFLogo\enspace\Large\textbf{MathForge}} \\[0.3cm]
+    \LARGE \textbf{\VAR{title}} \\[0.3cm]
     \normalsize \VAR{count} \VAR{task_word} $\cdot$ \VAR{difficulty_label}
 \end{center}
 

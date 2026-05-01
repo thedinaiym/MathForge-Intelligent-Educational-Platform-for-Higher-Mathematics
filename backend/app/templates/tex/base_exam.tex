@@ -6,7 +6,26 @@
 \usepackage{geometry}
 \usepackage{enumitem}
 \usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usepackage{xcolor}
 \geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\definecolor{mfamber}{RGB}{245,158,11}
+\newcommand{\MFLogo}{%
+  \tikz[baseline=-2pt,scale=1]{%
+    \fill[mfamber!20,rounded corners=2.5pt] (0,0) rectangle (13pt,13pt);%
+    \draw[mfamber,line width=0.55pt,rounded corners=2.5pt] (0,0) rectangle (13pt,13pt);%
+    \node[font=\bfseries\fontsize{5.5}{5.5}\selectfont,text=mfamber!80!black]
+      at (6.5pt,6.5pt) {MF};%
+  }%
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\MFLogo\enspace\textbf{MathForge}}
+\rhead{\small\textit{{{ title }}}}
+\cfoot{\thepage}
 
 \begin{document}
 
@@ -16,6 +35,7 @@
 
 {% for var in variants %}
 \begin{center}
+    {\MFLogo\enspace\Large\bfseries MathForge} \\[4pt]
     {\Large\bfseries {{ title }}} \\[4pt]
     {\large Вариант~№\,{{ var.variant_num }}}
 \end{center}
