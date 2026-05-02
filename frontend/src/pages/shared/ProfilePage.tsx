@@ -254,17 +254,29 @@ export default function ProfilePage() {
       return resp.data
     },
     onMutate: (data) => {
-      // Optimistic update — UI feels instant, no spinner needed
+      // Snapshot BEFORE update so onError can properly revert
+      const snapshot = user ? { ...user } : null
       if (user) setUser({ ...user, name: data.name, role: data.role, locale: data.locale })
       i18n.changeLanguage(data.locale)
       localStorage.setItem('mathforge_lang', data.locale)
+      return snapshot
     },
     onSuccess: (data) => {
       setUser({ id: data.id, name: data.name, role: data.role, locale: data.locale })
     },
-    onError: () => {
-      // Revert to original user if API fails
-      if (user) reset({ name: user.name ?? '', role: (user.role === 'admin' ? 'teacher' : user.role) ?? 'student', locale: activeLocale })
+    onError: (_err, _vars, snapshot) => {
+      // Revert store and form to the snapshotted state (before optimistic update)
+      if (snapshot) {
+        setUser(snapshot)
+        const revertLocale = ((snapshot as any).locale ?? 'ru') as UserLocale
+        reset({
+          name:   (snapshot as any).name   ?? '',
+          role:   ((snapshot as any).role === 'admin' ? 'teacher' : (snapshot as any).role) ?? 'student',
+          locale: revertLocale,
+        })
+        i18n.changeLanguage(revertLocale)
+        localStorage.setItem('mathforge_lang', revertLocale)
+      }
     },
   })
 
@@ -286,13 +298,17 @@ export default function ProfilePage() {
           {...register('name')}
           label={t('profile.name')}
           error={errors.name?.message}
+          disabled={mutation.isPending}
         />
 
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-slate-700">{t('profile.role')}</label>
           <select
             {...register('role')}
-            className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+            disabled={mutation.isPending}
+            className={`w-full pl-3 pr-8 py-2 rounded-lg border text-sm cursor-pointer
+              focus:outline-none focus:ring-2 focus:ring-amber-400
+              disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed ${
               errors.role ? 'border-red-500' : 'border-slate-300'
             }`}
           >
@@ -306,7 +322,10 @@ export default function ProfilePage() {
           <label className="text-sm font-medium text-slate-700">{t('profile.locale')}</label>
           <select
             {...register('locale')}
-            className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+            disabled={mutation.isPending}
+            className={`w-full pl-3 pr-8 py-2 rounded-lg border text-sm cursor-pointer
+              focus:outline-none focus:ring-2 focus:ring-amber-400
+              disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed ${
               errors.locale ? 'border-red-500' : 'border-slate-300'
             }`}
           >

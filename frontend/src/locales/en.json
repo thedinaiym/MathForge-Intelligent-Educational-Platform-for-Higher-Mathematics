@@ -1,4 +1,4 @@
-{
+﻿{
   "nav": {
     "home": "Home",
     "dashboard": "Dashboard",
@@ -313,6 +313,8 @@
     "practiceProblems": "Practice problems",
     "teacherNote": "Mastery tracking is shown for student accounts. Your activity heatmap is above.",
     "waking": "Server is waking up, connecting…",
+    "showAnswer": "Show answer",
+    "hideAnswer": "Hide answer",
     "errorTitle": "Could not load dashboard",
     "errorSubtitle": "The server is unavailable. Please try again.",
     "retry": "Retry",

@@ -30,19 +30,14 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation()
-  const { user, logout } = useAuthStore()
+  const { user, startLogout } = useAuthStore()
   const navigate = useNavigate()
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     onClose()
-    try {
-      await supabase.auth.signOut()
-    } catch {
-      // network error — clear local state anyway
-    } finally {
-      logout()
-      navigate('/auth', { replace: true })
-    }
+    startLogout()                         // clears user + sets isLoggingOut flag
+    navigate('/auth', { replace: true })
+    supabase.auth.signOut().catch(() => {}) // fire-and-forget; SIGNED_OUT resets the flag
   }
 
   const handleLocaleChange = (locale: string) => {
@@ -51,7 +46,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   }
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+    `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
       isActive
         ? 'bg-amber-500 text-white'
         : 'text-slate-600 hover:bg-amber-50 hover:text-amber-700'
@@ -61,7 +56,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     <aside
       className={[
         // ── Base layout ──────────────────────────────────────────────────────
-        'flex flex-col bg-white border-r border-slate-200 h-screen w-64 flex-shrink-0',
+        'flex flex-col bg-white border-r border-slate-200 h-dvh w-64 flex-shrink-0',
         // ── Mobile: fixed overlay, slide in/out via transform ────────────────
         'fixed inset-y-0 left-0 z-50',
         'transform transition-transform duration-300 ease-in-out',
@@ -155,7 +150,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <button
               key={loc}
               onClick={() => handleLocaleChange(loc)}
-              className={`flex-1 py-1 text-xs rounded font-medium transition-colors ${
+              className={`flex-1 py-1 text-xs rounded font-medium transition-colors cursor-pointer ${
                 (i18n.resolvedLanguage ?? i18n.language) === loc
                   ? 'bg-amber-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-amber-100'
@@ -171,7 +166,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="px-3 pb-4 flex-shrink-0">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
         >
           <LogOut size={18} /> {t('nav.logout')}
         </button>

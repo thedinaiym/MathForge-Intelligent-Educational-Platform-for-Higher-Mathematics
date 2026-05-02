@@ -13,7 +13,7 @@ export default function DashboardLayout() {
   useBalance()
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-dvh bg-slate-50 overflow-hidden">
 
       {/* ── Backdrop (mobile only, sits below sidebar z-50, above content z-40) ── */}
       {isMobileMenuOpen && (

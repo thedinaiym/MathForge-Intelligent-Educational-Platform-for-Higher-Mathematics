@@ -33,6 +33,7 @@ import api from '../../lib/axios'
 import { useCategories, isOrtCategory, type Category } from '../../hooks/useCategories'
 import GeoGebraWidget, { type GeoGebraApp } from '../../components/geogebra/GeoGebraWidget'
 import i18n from '../../i18n'
+import MathRenderer, { MathText } from '../../components/math/MathRenderer'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -152,13 +153,13 @@ function MathToolsButton() {
 
   return (
     <>
-      {/* ── Floating trigger button (bottom-left, avoids avatar on bottom-right) */}
+      {/* ── Floating trigger button (bottom-right, above the Avatar widget) */}
       <button
         onClick={() => setOpen(true)}
         title={t('geogebra.openTool')}
-        className="fixed bottom-5 left-5 z-40 flex items-center gap-2 px-4 py-2.5
+        className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-4 py-2.5
           rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg
-          text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
+          text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
       >
         <Calculator size={16} />
         <span className="hidden sm:inline">{t('geogebra.mathTools')}</span>
@@ -612,11 +613,11 @@ export default function PracticePage() {
                     {i + 1}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-slate-700">{task.question_text}</p>
+                    <div className="text-sm text-slate-700"><MathText text={task.question_text} /></div>
                     {task.condition_latex && (
-                      <code className="mt-1 block text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 font-mono text-slate-600 overflow-x-auto">
-                        {task.condition_latex}
-                      </code>
+                      <div className="mt-1 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 overflow-x-auto">
+                        <MathRenderer latex={task.condition_latex} block />
+                      </div>
                     )}
                   </div>
                   {result.status === 'correct' && <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" />}

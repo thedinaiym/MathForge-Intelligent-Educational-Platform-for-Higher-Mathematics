@@ -143,9 +143,10 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
   const remaining = GUEST_MESSAGE_LIMIT - usedCount
   const exhausted = remaining <= 0
 
-  // Auto-scroll
+  // Auto-scroll — block:'nearest' scrolls only within the chat container,
+  // not the whole page (prevents jump to second section on load/lang-change).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages, thinking])
 
   // Greeting on mount
@@ -264,7 +265,7 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
                 key={s}
                 onClick={() => sendMessage(s)}
                 className="px-3 py-1.5 rounded-xl bg-white/8 hover:bg-white/15 border border-white/15
-                           text-white/70 hover:text-white text-xs transition-all"
+                           text-white/70 hover:text-white text-xs transition-all cursor-pointer"
               >
                 {s}
               </button>

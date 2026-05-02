@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Activity, Brain, ChevronRight, Flame, Sparkles, Target, Trophy, X, Zap } from 'lucide-react'
 import api from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import MathRenderer, { MathText } from '../../components/math/MathRenderer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ function MasteryBar({ entry }: { entry: MasteryEntry }) {
 // ── Adaptive task card ─────────────────────────────────────────────────────────
 
 function TaskCard({ task, index }: { task: GeneratedTask; index: number }) {
+  const { t } = useTranslation()
   const [showAnswer, setShowAnswer] = useState(false)
 
   return (
@@ -100,24 +102,26 @@ function TaskCard({ task, index }: { task: GeneratedTask; index: number }) {
         <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">
           {index + 1}
         </span>
-        <p className="text-slate-700 text-sm flex-1">{task.question_text}</p>
+        <div className="text-slate-700 text-sm flex-1">
+          <MathText text={task.question_text} />
+        </div>
       </div>
       {task.condition_latex && (
-        <code className="block text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-slate-600 font-mono overflow-x-auto">
-          {task.condition_latex}
-        </code>
+        <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 overflow-x-auto">
+          <MathRenderer latex={task.condition_latex} block />
+        </div>
       )}
       <button
         onClick={() => setShowAnswer((v) => !v)}
-        className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
+        className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors cursor-pointer"
       >
-        {showAnswer ? 'Hide answer' : 'Show answer'}
+        {showAnswer ? t('dashboard.hideAnswer', 'Hide answer') : t('dashboard.showAnswer', 'Show answer')}
         <ChevronRight size={12} className={`transition-transform ${showAnswer ? 'rotate-90' : ''}`} />
       </button>
       {showAnswer && (
-        <code className="block text-xs bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-emerald-700 font-mono overflow-x-auto">
-          {task.answer_latex}
-        </code>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 overflow-x-auto">
+          <MathRenderer latex={task.answer_latex} block />
+        </div>
       )}
     </div>
   )
@@ -226,6 +230,11 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setAdaptiveTasks(data.tasks)
+      queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
+    },
+    onError: () => {
+      // Token was deducted on the backend before generation — refresh balance
+      // so the user sees the correct (deducted) amount even when generation fails.
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
     },
   })

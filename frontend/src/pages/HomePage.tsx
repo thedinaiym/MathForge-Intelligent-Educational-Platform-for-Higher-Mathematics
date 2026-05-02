@@ -11,6 +11,7 @@ import {
   Sparkles,
   ChevronDown,
   ArrowRight,
+  ArrowUp,
   Volume2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -62,7 +63,7 @@ function Navbar() {
           <button
             key={link.anchor}
             onClick={() => scrollTo(link.anchor)}
-            className="px-3 py-1.5 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium"
+            className="px-3 py-1.5 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium cursor-pointer"
           >
             {t(link.labelKey)}
           </button>
@@ -77,7 +78,7 @@ function Navbar() {
             <button
               key={loc}
               onClick={() => i18n.changeLanguage(loc)}
-              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
                 (i18n.resolvedLanguage ?? i18n.language) === loc
                   ? 'bg-amber-500 text-white'
                   : 'bg-white/10 text-white/60 hover:bg-white/20'
@@ -275,7 +276,7 @@ function Hero() {
               </p>
               <button
                 onClick={() => navigate('/auth')}
-                className="text-amber-400/70 hover:text-amber-300 text-xs font-medium transition-colors flex items-center gap-1"
+                className="text-amber-400/70 hover:text-amber-300 text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
               >
                 {t('home.getStarted')} <ArrowRight size={11} />
               </button>
@@ -288,7 +289,7 @@ function Hero() {
       <div className="relative z-10 flex justify-center pb-6">
         <button
           onClick={scrollToFeatures}
-          className="text-white/25 hover:text-white/60 transition-colors animate-bounce"
+          className="text-white/25 hover:text-white/60 transition-colors animate-bounce cursor-pointer"
         >
           <ChevronDown size={26} />
         </button>
@@ -430,6 +431,14 @@ function Creator() {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const [showScrollTop, setShowScrollTop] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 500)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <div className="bg-slate-950">
       <Hero />
@@ -441,6 +450,21 @@ export default function HomePage() {
       <LibraryPreviewSection />
       <Creator />
       <Footer />
+
+      {/* ── Scroll-to-top button ── */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full
+                     bg-amber-500 hover:bg-amber-400 active:scale-90
+                     text-white shadow-lg shadow-amber-500/40
+                     flex items-center justify-center
+                     transition-all cursor-pointer"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp size={18} />
+        </button>
+      )}
     </div>
   )
 }

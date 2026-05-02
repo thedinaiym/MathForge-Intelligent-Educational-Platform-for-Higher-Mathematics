@@ -44,15 +44,23 @@ export default function AvatarTeacherWidget() {
   }, [open, mode])
 
   const hasGreetedRef = useRef(false)
-  useEffect(() => {
-    if (open && !hasGreetedRef.current) {
-      hasGreetedRef.current = true
-      const greeting = t('avatar.greeting')
-      setMessages([{ role: 'aida', content: greeting }])
-      speakTimed(greeting, lang, 'female')
-      setPhase('speaking')
+
+  // Greeting is triggered only from the toggle handler below — never from an effect.
+  // Moving it here avoids stale-closure / unstable-dep re-fires on every keystroke.
+  const handleToggle = () => {
+    if (open) {
+      setOpen(false)
+    } else {
+      setOpen(true)
+      if (!hasGreetedRef.current) {
+        hasGreetedRef.current = true
+        const greeting = t('avatar.greeting')
+        setMessages([{ role: 'aida', content: greeting }])
+        speakTimed(greeting, lang, 'female')
+        setPhase('speaking')
+      }
     }
-  }, [open, lang, speakTimed, t])
+  }
 
   const handleSpeechEnd = () => setPhase('idle')
 
@@ -118,10 +126,10 @@ export default function AvatarTeacherWidget() {
             </div>
             <div className="flex items-center gap-2">
               <div className="flex bg-amber-600/40 rounded-full p-0.5 gap-0.5">
-                <button onClick={() => switchMode('text')} className={`rounded-full p-1 ${mode === 'text' ? 'bg-white text-amber-600' : 'text-white/80'}`}><Keyboard size={13} /></button>
-                <button onClick={() => switchMode('voice')} className={`rounded-full p-1 ${mode === 'voice' ? 'bg-white text-amber-600' : 'text-white/80'}`}><Mic size={13} /></button>
+                <button onClick={() => switchMode('text')} className={`rounded-full p-1 cursor-pointer ${mode === 'text' ? 'bg-white text-amber-600' : 'text-white/80'}`}><Keyboard size={13} /></button>
+                <button onClick={() => switchMode('voice')} className={`rounded-full p-1 cursor-pointer ${mode === 'voice' ? 'bg-white text-amber-600' : 'text-white/80'}`}><Mic size={13} /></button>
               </div>
-              <button onClick={() => setOpen(false)} className="text-white/80"><X size={16} /></button>
+              <button onClick={() => setOpen(false)} className="text-white/80 cursor-pointer"><X size={16} /></button>
             </div>
           </div>
 
@@ -172,7 +180,7 @@ export default function AvatarTeacherWidget() {
         </div>
       )}
 
-      <button onClick={() => setOpen(v => !v)} className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white ${open ? 'bg-slate-700' : 'bg-amber-500'}`}>
+      <button onClick={handleToggle} className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white cursor-pointer ${open ? 'bg-slate-700' : 'bg-amber-500'}`}>
         {open ? <ChevronDown size={22} /> : <Bot size={22} />}
       </button>
     </div>

@@ -59,7 +59,7 @@ function ProtectedRoute({
 
 /** Listens to Supabase auth events and syncs with our backend DB */
 function AuthSync() {
-  const { setUser, logout, setInitialized } = useAuthStore()
+  const { setUser, logout, finishLogout, setInitialized } = useAuthStore()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -196,6 +196,14 @@ function AuthSync() {
           if (session) {
             // Check BEFORE cleanHash() erases it
             const cameFromOAuth = window.location.hash.includes('access_token')
+
+            // If logout was just initiated, don't re-sync or navigate back in
+            if (useAuthStore.getState().isLoggingOut) {
+              clearTimeout(safetyTimer)
+              markInitialized()
+              return
+            }
+
             await syncUser(displayName)
             cleanHash()
             clearTimeout(safetyTimer)
@@ -246,6 +254,9 @@ function AuthSync() {
 
         // ── SIGNED_IN ────────────────────────────────────────────────────
         if (event === 'SIGNED_IN' && session) {
+          // Stale SIGNED_IN from a token refresh that raced with our logout — ignore.
+          if (useAuthStore.getState().isLoggingOut) return
+
           // Cancel the 3 s fallback if it's still pending.
           if (signedInFallback !== null) {
             clearTimeout(signedInFallback)
@@ -262,6 +273,7 @@ function AuthSync() {
         // ── SIGNED_OUT ───────────────────────────────────────────────────
         if (event === 'SIGNED_OUT') {
           logout()
+          finishLogout()  // reset isLoggingOut so next login works normally
           clearTimeout(safetyTimer)
           markInitialized()
         }
@@ -277,7 +289,7 @@ function AuthSync() {
 
   return null
 }
-/** Shows the rating modal once per user, 4 s after first login. */
+/** Shows the rating modal once per user, 45 s after first login. */
 function RatingPrompt() {
   const { user } = useAuthStore()
   const [show, setShow] = useState(false)
@@ -286,7 +298,7 @@ function RatingPrompt() {
     if (!user) return
     const key = `mathforge_rated_${user.id}`
     if (localStorage.getItem(key)) return
-    const timer = setTimeout(() => setShow(true), 4_000)
+    const timer = setTimeout(() => setShow(true), 45_000)
     return () => clearTimeout(timer)
   }, [user])
 
