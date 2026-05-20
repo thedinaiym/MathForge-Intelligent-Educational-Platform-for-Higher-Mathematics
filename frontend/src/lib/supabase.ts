@@ -15,6 +15,6 @@ export const supabase = createClient(supabaseUrl ?? '', supabaseAnonKey ?? '', {
     // Navigator LockManager times out in some browsers / private-mode / multi-tab
     // setups (error: "Acquiring lock … timed out waiting 10000ms").
     // Overriding with a no-op bypasses the lock entirely — safe for a single-tab SPA.
-    lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn(),
+    lock: async <R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>) => fn(),
   },
 })
