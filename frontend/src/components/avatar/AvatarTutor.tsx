@@ -78,6 +78,7 @@ export interface AvatarTutorProps {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VRM_PATH = '/tutor.vrm'
+const vrmBytesCache = new Map<string, Promise<ArrayBuffer>>()
 
 // Camera frames the avatar from chest up.
 // VRM origin is at feet; head centre is at ~1.55 m.
@@ -263,9 +264,10 @@ function VRMAvatar({
     const loader = new GLTFLoader()
     loader.register((parser: GLTFParser) => new VRMLoaderPlugin(parser))
 
-    loader.load(
-      modelPath,
-      (gltf: GLTF) => {
+    const load = async () => {
+      try {
+        const bytes = await _getVRMBytes(modelPath)
+        const gltf = await _parseVRM(loader, bytes, modelPath)
         if (cancelled) return
 
         const loadedVrm: VRM | undefined = gltf.userData.vrm
@@ -291,15 +293,15 @@ function VRMAvatar({
         vrmRef.current = loadedVrm
         setVrm(loadedVrm)
         onModelReady?.()
-      },
-      undefined,
-      (err: unknown) => {
+      } catch (err: unknown) {
         if (!cancelled) {
           console.error('[AvatarTutor] VRM load error:', err)
           onLoadError?.(`Could not load ${modelPath}`)
         }
-      },
-    )
+      }
+    }
+
+    load()
 
     return () => {
       cancelled = true
@@ -504,6 +506,26 @@ function _setExpression(
     const proxy = (vrm as any).blendShapeProxy
     proxy?.setValue(vrmZeroName.toUpperCase(), value)
   }
+}
+
+function _getVRMBytes(modelPath: string): Promise<ArrayBuffer> {
+  const existing = vrmBytesCache.get(modelPath)
+  if (existing) return existing
+
+  const request = fetch(modelPath).then((res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.arrayBuffer()
+  })
+  vrmBytesCache.set(modelPath, request)
+  return request
+}
+
+function _parseVRM(loader: GLTFLoader, bytes: ArrayBuffer, modelPath: string): Promise<GLTF> {
+  const basePath = modelPath.slice(0, modelPath.lastIndexOf('/') + 1) || '/'
+
+  return new Promise((resolve, reject) => {
+    loader.parse(bytes.slice(0), basePath, resolve, reject)
+  })
 }
 
 /** Stop and disconnect the current AudioBufferSourceNode if any. */

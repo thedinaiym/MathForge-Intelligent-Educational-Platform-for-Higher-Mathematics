@@ -165,7 +165,12 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
 
   const sendMessage = async (text: string) => {
     const q = text.trim()
-    if (!q || thinking || exhausted) return
+    if (!q || thinking) return
+    if (exhausted) {
+      setInput(q)
+      setShowModal(true)
+      return
+    }
 
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: q }])
@@ -264,8 +269,10 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
               <button
                 key={s}
                 onClick={() => sendMessage(s)}
+                disabled={thinking}
                 className="px-3 py-1.5 rounded-xl bg-white/8 hover:bg-white/15 border border-white/15
-                           text-white/70 hover:text-white text-xs transition-all cursor-pointer"
+                           text-white/70 hover:text-white text-xs transition-all cursor-pointer
+                           disabled:opacity-40 disabled:cursor-wait"
               >
                 {s}
               </button>
@@ -292,49 +299,54 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
 
         {/* ── Input row ── */}
         <div className="px-4 pb-4 pt-2">
-          {exhausted ? (
-            <button
-              onClick={() => setShowModal(true)}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl
-                         bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400
-                         text-white font-semibold text-sm shadow-xl shadow-amber-500/30
-                         transition-all active:scale-95"
-            >
-              <Sparkles size={15} />
-              Continue with Aida — Register Free
-              <ArrowRight size={15} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 bg-white/8 border border-white/15 rounded-2xl px-4 py-1 backdrop-blur-sm focus-within:border-amber-400/50 transition-colors">
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                placeholder={
-                  lang === 'ru' ? 'Задайте вопрос Айде…' :
-                  lang === 'kg' ? 'Айдага суроо бериңиз…' :
-                  'Ask Aida anything…'
-                }
-                disabled={thinking}
-                className="flex-1 bg-transparent text-white placeholder-white/30 text-sm py-2.5
-                           focus:outline-none disabled:opacity-40"
-                autoComplete="off"
-              />
+          {exhausted && (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2">
+              <span className="text-[11px] text-amber-100/80">
+                {lang === 'ru' ? 'Бесплатный лимит закончился' :
+                 lang === 'kg' ? 'Акысыз лимит бүттү' :
+                 'Free limit reached'}
+              </span>
               <button
-                onClick={() => sendMessage(input)}
-                disabled={!input.trim() || thinking}
-                className="w-8 h-8 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-30
-                           flex items-center justify-center text-white transition-all flex-shrink-0
-                           active:scale-90"
+                onClick={() => setShowModal(true)}
+                className="text-[11px] font-semibold text-amber-200 hover:text-amber-100 whitespace-nowrap"
               >
-                {thinking
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <Send size={14} />
-                }
+                {lang === 'ru' ? 'Продолжить' :
+                 lang === 'kg' ? 'Улантуу' :
+                 'Continue'}
               </button>
             </div>
           )}
+          <div className="flex items-center gap-2 bg-white/8 border border-white/15 rounded-2xl px-4 py-1 backdrop-blur-sm focus-within:border-amber-400/50 transition-colors">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder={
+                lang === 'ru' ? 'Задайте вопрос Айде…' :
+                lang === 'kg' ? 'Айдага суроо бериңиз…' :
+                'Ask Aida anything…'
+              }
+              disabled={thinking}
+              className="flex-1 bg-transparent text-white placeholder-white/30 text-sm py-2.5
+                         focus:outline-none disabled:opacity-40"
+              autoComplete="off"
+            />
+            <button
+              onClick={() => sendMessage(input)}
+              disabled={!input.trim() || thinking}
+              className="w-8 h-8 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-30
+                         flex items-center justify-center text-white transition-all flex-shrink-0
+                         active:scale-90"
+            >
+              {thinking
+                ? <Loader2 size={14} className="animate-spin" />
+                : exhausted
+                  ? <Sparkles size={14} />
+                  : <Send size={14} />
+              }
+            </button>
+          </div>
         </div>
       </div>
     </>
