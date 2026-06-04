@@ -98,6 +98,7 @@ function TopicTaskGenerator({
   const [categoryId,  setCategoryId]  = useState<string>('')
   const [difficulty,  setDifficulty]  = useState<Difficulty>('easy')
   const [activeTask,  setActiveTask]  = useState<GeneratedTask | null>(null)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   // Keep category in sync when parent signals next-task on same category
   useEffect(() => {
@@ -112,38 +113,43 @@ function TopicTaskGenerator({
     },
   })
 
-  const generateMutation = useMutation<GeneratedTask | null, Error, { catId: string; diff: Difficulty }>({
+  const generateMutation = useMutation<GeneratedTask, Error, { catId: string; diff: Difficulty }>({
     mutationFn: async ({ catId, diff }) => {
       const { data } = await api.post<{ tasks: GeneratedTask[] }>('/tasks/generate/practice', {
         category_id: catId,
         difficulty: diff,
         count: 1,
+      }, {
+        timeout: 20_000,
       })
-      return data.tasks?.[0] ?? null
+      const task = data.tasks?.[0] ?? null
+      if (!task) throw new Error(t('analyzer.generator.emptyError'))
+      return task
     },
     onSuccess: (task) => {
-      if (!task) {
-        console.error('[StudentAnalyzer] generate/practice returned 0 tasks')
-        return
-      }
+      setGenerateError(null)
       setActiveTask(task)
       onTaskGenerated(task)
       queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] })
     },
     onError: (err: unknown) => {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      console.error('[StudentAnalyzer] generate/practice failed:', detail ?? err)
+      const message = detail ?? (err instanceof Error ? err.message : t('analyzer.generator.error'))
+      setGenerateError(message)
+      console.error('[StudentAnalyzer] generate/practice failed:', message)
     },
   })
 
   const handleGenerate = () => {
     if (!categoryId || tokenBalance < 1) return
     setActiveTask(null)
+    setGenerateError(null)
     generateMutation.mutate({ catId: categoryId, diff: difficulty })
   }
 
   const handleNextTask = () => {
     setActiveTask(null)
+    setGenerateError(null)
     onNextTask()
     generateMutation.mutate({ catId: categoryId, diff: difficulty })
   }
@@ -219,14 +225,16 @@ function TopicTaskGenerator({
             ? <Loader2 size={15} className="animate-spin" />
             : <Zap size={15} />
           }
-          {t('analyzer.generator.generate')}
+          {generateMutation.isPending
+            ? t('analyzer.generator.generating')
+            : t('analyzer.generator.generate')}
         </button>
       </div>
 
       {/* Error */}
-      {generateMutation.isError && (
+      {(generateMutation.isError || generateError) && (
         <p className="px-5 pb-3 text-xs text-red-500">
-          {t('analyzer.generator.error')}
+          {generateError ?? t('analyzer.generator.error')}
         </p>
       )}
 

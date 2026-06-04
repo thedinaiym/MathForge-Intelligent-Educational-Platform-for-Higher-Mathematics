@@ -43,6 +43,7 @@ router = APIRouter()
 
 TOKEN_COST_PDF = 5.0
 TOKEN_COST_ADAPTIVE = 1.0   # cheap — JSON only, no PDF compilation
+TASK_GENERATION_TIMEOUT_SECONDS = 6.0
 
 
 async def _log_activity(user_id: uuid.UUID, db: AsyncSession) -> None:
@@ -136,12 +137,22 @@ async def _generate_tasks(
     for i in range(min(payload.count, len(templates) * 10)):
         tmpl = templates[i % len(templates)]
         try:
-            task = TaskGenerator.generate(tmpl.template_json, locale=locale)
+            task = await asyncio.wait_for(
+                asyncio.to_thread(TaskGenerator.generate, tmpl.template_json, locale),
+                timeout=TASK_GENERATION_TIMEOUT_SECONDS,
+            )
             generated.append({
                 "question_text": task.get("question_text", ""),
                 "condition_latex": task.get("condition_latex", ""),
                 "answer_latex": task.get("answer_latex", ""),
             })
+        except asyncio.TimeoutError:
+            logger.error(
+                "Generation timeout for template %s after %.1fs",
+                tmpl.id,
+                TASK_GENERATION_TIMEOUT_SECONDS,
+            )
+            continue
         except Exception as e:
             # === ИСПРАВЛЕННАЯ ЛОВУШКА ОШИБОК ===
             print(f"🔥 ОШИБКА ГЕНЕРАЦИИ (Шаблон {tmpl.id}): {str(e)}", flush=True)

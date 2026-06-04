@@ -97,6 +97,12 @@ export default function AvatarTutor({
   onModelReady,
 }: AvatarTutorProps) {
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [modelReady, setModelReady] = useState(false)
+
+  const handleModelReady = useCallback(() => {
+    setModelReady(true)
+    onModelReady?.()
+  }, [onModelReady])
 
   return (
     <div
@@ -108,6 +114,16 @@ export default function AvatarTutor({
           <span className="text-3xl">🤖</span>
           <p className="text-sm">{loadError}</p>
           <p className="text-xs text-slate-500">Place tutor.vrm in /public</p>
+        </div>
+      )}
+
+      {!modelReady && !loadError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80 z-10 pointer-events-none bg-slate-950/35 backdrop-blur-[1px]">
+          <div className="w-12 h-12 rounded-full border-4 border-amber-400 border-t-transparent animate-spin" />
+          <div className="text-center">
+            <p className="text-sm font-medium">Загрузка Айды...</p>
+            <p className="text-xs text-white/45">3D-аватар готовится</p>
+          </div>
         </div>
       )}
 
@@ -146,7 +162,7 @@ export default function AvatarTutor({
             audioUrl={audioUrl ?? null}
             wordBoundaries={wordBoundaries}
             onSpeechEnd={onSpeechEnd}
-            onModelReady={onModelReady}
+            onModelReady={handleModelReady}
             onLoadError={setLoadError}
           />
         </Suspense>

@@ -122,11 +122,13 @@ function Hero() {
   const { audioUrl, wordBoundaries, speakTimed, clear } = useTTSSpeech()
 
   const [showSoundHint, setShowSoundHint] = useState(true)
+  const [avatarReady, setAvatarReady] = useState(false)
 
   // Reset hint whenever language changes so visitor can hear greeting in new language
   useEffect(() => { setShowSoundHint(true) }, [lang])
 
   const playGreeting = () => {
+    if (!avatarReady) return
     const text = AIDA_GREETINGS[lang] ?? AIDA_GREETINGS.ru
     speakTimed(text, lang, 'female')
     setShowSoundHint(false)
@@ -180,22 +182,29 @@ function Hero() {
               wordBoundaries={wordBoundaries}
               height={440}
               onSpeechEnd={clear}
+              onModelReady={() => setAvatarReady(true)}
             />
 
             {/* Voice hint — shown until user activates TTS (browser requires user gesture) */}
             {showSoundHint && !audioUrl && (
               <button
                 onClick={playGreeting}
+                disabled={!avatarReady}
                 className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2
                            px-4 py-2 rounded-full bg-black/70 backdrop-blur-md
                            border border-white/20 hover:border-amber-400/60
                            text-white/75 hover:text-white text-xs font-medium
-                           transition-all shadow-lg z-10 whitespace-nowrap"
+                           transition-all shadow-lg z-10 whitespace-nowrap
+                           disabled:cursor-wait disabled:opacity-70 disabled:hover:border-white/20 disabled:hover:text-white/75"
               >
                 <Volume2 size={13} className="text-amber-400" />
-                {lang === 'ru' ? 'Нажмите, чтобы услышать Айду' :
-                 lang === 'kg' ? 'Айданын үнүн угуу' :
-                 'Tap to hear Aida'}
+                {!avatarReady
+                  ? (lang === 'ru' ? 'Айда загружается...' :
+                     lang === 'kg' ? 'Айда жүктөлүүдө...' :
+                     'Aida is loading...')
+                  : (lang === 'ru' ? 'Нажмите, чтобы услышать Айду' :
+                     lang === 'kg' ? 'Айданын үнүн угуу' :
+                     'Tap to hear Aida')}
               </button>
             )}
           </div>

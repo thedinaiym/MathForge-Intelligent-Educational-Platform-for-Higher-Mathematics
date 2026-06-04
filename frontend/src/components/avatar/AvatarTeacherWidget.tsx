@@ -34,6 +34,7 @@ export default function AvatarTeacherWidget() {
   const { audioUrl, wordBoundaries, isLoading, speakTimed, clear } = useTTSSpeech()
   const inputRef      = useRef<HTMLInputElement>(null)
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  const [avatarReady, setAvatarReady] = useState(false)
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -44,6 +45,23 @@ export default function AvatarTeacherWidget() {
   }, [open, mode])
 
   const hasGreetedRef = useRef(false)
+  const pendingGreetingRef = useRef(false)
+
+  const startGreeting = () => {
+    const greeting = t('avatar.greeting')
+    setMessages([{ role: 'aida', content: greeting }])
+    speakTimed(greeting, lang, 'female').then(ttsOk => {
+      setPhase(ttsOk ? 'speaking' : 'idle')
+    })
+  }
+
+  const handleModelReady = () => {
+    setAvatarReady(true)
+    if (pendingGreetingRef.current) {
+      pendingGreetingRef.current = false
+      startGreeting()
+    }
+  }
 
   // Greeting is triggered only from the toggle handler below — never from an effect.
   // Moving it here avoids stale-closure / unstable-dep re-fires on every keystroke.
@@ -54,10 +72,12 @@ export default function AvatarTeacherWidget() {
       setOpen(true)
       if (!hasGreetedRef.current) {
         hasGreetedRef.current = true
-        const greeting = t('avatar.greeting')
-        setMessages([{ role: 'aida', content: greeting }])
-        speakTimed(greeting, lang, 'female')
-        setPhase('speaking')
+        if (avatarReady) {
+          startGreeting()
+        } else {
+          pendingGreetingRef.current = true
+          setPhase('thinking')
+        }
       }
     }
   }
@@ -160,7 +180,13 @@ export default function AvatarTeacherWidget() {
             </div>
           ) : (
             <>
-              <AvatarTutor audioUrl={audioUrl} wordBoundaries={wordBoundaries} height={200} onSpeechEnd={handleSpeechEnd} />
+              <AvatarTutor
+                audioUrl={audioUrl}
+                wordBoundaries={wordBoundaries}
+                height={200}
+                onSpeechEnd={handleSpeechEnd}
+                onModelReady={handleModelReady}
+              />
               <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2" style={{ maxHeight: '180px' }}>
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>

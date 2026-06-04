@@ -558,9 +558,11 @@
       "selectTopic":  "Select a topic…",
       "difficulty":   "Difficulty",
       "generate":     "Generate Task",
+      "generating":   "Generating...",
       "taskLabel":    "Your Task",
       "autoFillHint": "Step 1 is pre-filled — continue solving below.",
       "nextTask":     "Next Task →",
+      "emptyError":   "The server did not return a task for the selected topic.",
       "error":        "Could not generate a task. Please try again."
     }
   },
