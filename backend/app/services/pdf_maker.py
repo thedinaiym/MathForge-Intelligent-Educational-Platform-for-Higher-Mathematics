@@ -62,6 +62,7 @@ _UNICODE_MATH = {
     '∼':  r'\ensuremath{\sim}',
     # Arithmetic
     '∞':  r'\ensuremath{\infty}',
+    '−':  r'\ensuremath{-}',
     '±':  r'\ensuremath{\pm}',
     '∓':  r'\ensuremath{\mp}',
     '×':  r'\ensuremath{\times}',
