@@ -1,13 +1,14 @@
-import re
 import random
+import re
+
 import sympy as sp
 
-# Protect single-letter SymPy builtins from being interpreted as functions/constants
-_SAFE_LOCALS = {name: sp.Symbol(name) for name in ['N', 'I', 'E', 'O', 'S', 'C', 'Q']}
 
-# Detects LaTeX-notation expressions the LLM sometimes emits instead of Python/SymPy.
-# e.g.  \varphi, \partial, \frac{A}{B}  →  not parseable by SymPy.
-_LATEX_EXPR_RE = re.compile(r'\\[a-zA-Z]')
+# Protect single-letter SymPy builtins from being interpreted as functions/constants.
+_SAFE_LOCALS = {name: sp.Symbol(name) for name in ["N", "I", "E", "O", "S", "C", "Q"]}
+
+# Detect LaTeX-notation expressions the LLM sometimes emits instead of Python/SymPy.
+_LATEX_EXPR_RE = re.compile(r"\\[a-zA-Z]")
 
 
 class TaskGenerator:
@@ -16,16 +17,12 @@ class TaskGenerator:
         ranges = template_json.get("ranges", {})
         constraints = template_json.get("constraints", [])
         sympy_expr_str = template_json.get("sympy_expr", "0")
-        # LLM sometimes wraps parameters in {A} instead of plain A.
-        # {A} is a Python set in SymPy — strip braces before parsing.
         sympy_expr_str = sympy_expr_str.replace("{", "").replace("}", "")
         topic = template_json.get("topic", "")
 
-        # Reject LaTeX-notation expressions early (e.g. \varphi, \partial).
-        # These cannot be parsed by SymPy and would produce a noisy stack trace.
         if _LATEX_EXPR_RE.search(sympy_expr_str):
             raise RuntimeError(
-                f"sympy_expr contains LaTeX notation which SymPy cannot parse: "
+                "sympy_expr contains LaTeX notation which SymPy cannot parse: "
                 f"{sympy_expr_str!r:.120}"
             )
 
@@ -34,26 +31,27 @@ class TaskGenerator:
         try:
             raw_expr = sp.sympify(sympy_expr_str, locals=_SAFE_LOCALS)
             final_expr = raw_expr.subs(coeffs)
+            latex_expr = sp.latex(final_expr)
 
-            # ── Question text ──────────────────────────────────────────────────
-            # Templates may store the text template under "question_text" or "texts".
-            # Substitute sampled coefficient values into the template string.
             q_texts = template_json.get("question_text") or template_json.get("texts", {})
-            q_template = q_texts.get(locale, q_texts.get("en", ""))
-            try:
-                question_text = q_template.format(**{str(k): v for k, v in coeffs.items()})
-            except (KeyError, ValueError):
-                question_text = q_template
+            if isinstance(q_texts, dict):
+                q_template = q_texts.get(locale, q_texts.get("en", ""))
+            else:
+                q_template = str(q_texts)
 
-            # ── condition_latex & answer_latex ─────────────────────────────────
             equation_rhs = template_json.get("equation_rhs")
+            inferred_zero_equation = (
+                equation_rhs is None
+                and bool(final_expr.free_symbols)
+                and "{expr}" in q_template
+                and "= 0" in q_template
+            )
+            if inferred_zero_equation:
+                equation_rhs = "0"
 
             if equation_rhs is not None and final_expr.free_symbols:
-                # Equation-solving task: produce "lhs = rhs" and solve for x.
-                # Only when final_expr still has symbolic unknowns (e.g. x).
-                # If all variables were substituted to a number, fall through to evaluation.
                 rhs_expr = sp.sympify(str(equation_rhs), locals=_SAFE_LOCALS)
-                condition_latex = f"{sp.latex(final_expr)} = {sp.latex(rhs_expr)}"
+                condition_latex = f"{latex_expr} = {sp.latex(rhs_expr)}"
 
                 try:
                     x = sp.Symbol("x")
@@ -62,41 +60,59 @@ class TaskGenerator:
                         if len(solutions) == 1:
                             answer_latex = f"x = {sp.latex(solutions[0])}"
                         else:
-                            answer_latex = ", \\ ".join(f"x = {sp.latex(s)}" for s in solutions)
+                            answer_latex = ", \\ ".join(
+                                f"x = {sp.latex(solution)}" for solution in solutions
+                            )
                     else:
                         answer_latex = sp.latex(sp.simplify(final_expr))
                 except Exception:
+                    solutions = []
                     answer_latex = sp.latex(sp.simplify(final_expr))
             else:
-                # Evaluation / simplification task (no unknowns left, or no equation_rhs).
-                condition_latex = sp.latex(final_expr)
+                solutions = []
+                condition_latex = latex_expr
                 answer_latex = sp.latex(sp.simplify(final_expr))
+
+            try:
+                question_text = q_template.format(
+                    **{str(k): v for k, v in coeffs.items()},
+                    expr=f"${latex_expr}$",
+                )
+            except (KeyError, ValueError):
+                question_text = q_template
 
             return {
                 "topic": topic,
                 "question_text": question_text,
                 "condition_latex": condition_latex,
                 "answer_latex": answer_latex,
+                "solutions": solutions,
+                "coefficients": coeffs,
             }
 
         except Exception as exc:
             raise RuntimeError(f"SymPy error: {exc}") from exc
 
     @staticmethod
-    def _sample_coefficients(ranges: dict, constraints: list[str]) -> dict:
-        # Compile constraints once as Python bytecode — 50-100× faster than SymPy subs()
-        # Constraints are our own seed strings (not user input), so eval is safe.
-        _safe = {"__builtins__": {}, "abs": abs}
+    def _sample_coefficients(
+        ranges: dict,
+        constraints: list[str],
+        max_attempts: int = 200,
+    ) -> dict:
+        # Constraints are internal seed strings, not user input.
+        safe_globals = {"__builtins__": {}, "abs": abs}
         compiled = []
-        for c in constraints:
+        for constraint in constraints:
             try:
-                compiled.append(compile(c, "<constraint>", "eval"))
+                compiled.append(compile(constraint, "<constraint>", "eval"))
             except SyntaxError as exc:
-                raise ValueError(f"Invalid constraint expression {c!r}: {exc}") from exc
+                raise ValueError(
+                    f"Invalid constraint expression {constraint!r}: {exc}"
+                ) from exc
 
-        for _ in range(200):
-            subs = {var: random.randint(r[0], r[1]) for var, r in ranges.items()}
-            if all(eval(code, _safe, subs) for code in compiled):
+        for _ in range(max_attempts):
+            subs = {var: random.randint(bounds[0], bounds[1]) for var, bounds in ranges.items()}
+            if all(eval(code, safe_globals, subs) for code in compiled):
                 return subs
 
-        raise ValueError("Could not satisfy constraints after 200 attempts")
+        raise ValueError(f"Could not find valid coefficients after {max_attempts} attempts")

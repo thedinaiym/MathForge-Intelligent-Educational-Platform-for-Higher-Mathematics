@@ -506,6 +506,9 @@
     "voice": {
       "textMode": "Текст режими",
       "voiceMode": "Үн режими",
+      "answerText": "Текст жооп",
+      "answerAudio": "Аудио жооп",
+      "sendText": "Текст жөнөтүү",
       "holdToTalk": "Сүйлөш үчүн кармап тур",
       "releaseToSend": "Жөнөтүү үчүн коё бер…",
       "listening": "Угуп жатам…",

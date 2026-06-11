@@ -244,6 +244,7 @@ function VRMAvatar({
   const sourceRef     = useRef<AudioBufferSourceNode | null>(null)
   const freqDataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const isSpeakingRef = useRef(false)
+  const playbackIdRef = useRef(0)
 
   // ── Timing-based lip-sync: scheduled timeouts from word boundaries ─────────
   // When wordBoundaries are provided we use these instead of frequency analysis.
@@ -316,6 +317,8 @@ function VRMAvatar({
 
   // ── Play audio + set up analyser whenever audioUrl changes ────────────────
   const playAudio = useCallback(async (url: string) => {
+    const playbackId = ++playbackIdRef.current
+
     // Stop previous audio
     _stopSource(sourceRef)
     isSpeakingRef.current = false
@@ -335,6 +338,7 @@ function VRMAvatar({
       const response   = await fetch(url)
       const arrayBuf   = await response.arrayBuffer()
       const audioBuf   = await ctx.decodeAudioData(arrayBuf)
+      if (playbackId !== playbackIdRef.current) return
 
       // Analyser for lip-sync frequency data
       const analyser = ctx.createAnalyser()
@@ -350,8 +354,16 @@ function VRMAvatar({
       analyser.connect(ctx.destination)
 
       source.onended = () => {
+        if (sourceRef.current !== source) return
         isSpeakingRef.current = false
+        sourceRef.current = null
         onSpeechEnd?.()
+      }
+
+      if (playbackId !== playbackIdRef.current) {
+        source.disconnect()
+        analyser.disconnect()
+        return
       }
 
       source.start(0)
@@ -367,11 +379,15 @@ function VRMAvatar({
     if (audioUrl) {
       playAudio(audioUrl)
     } else {
+      playbackIdRef.current += 1
       _stopSource(sourceRef)
       isSpeakingRef.current = false
     }
     // Cleanup when component unmounts or audioUrl changes again
-    return () => { _stopSource(sourceRef) }
+    return () => {
+      playbackIdRef.current += 1
+      _stopSource(sourceRef)
+    }
   }, [audioUrl, playAudio])
 
   // ── Word-boundary timing scheduler ───────────────────────────────────────
@@ -403,6 +419,8 @@ function VRMAvatar({
   // ── Cleanup AudioContext on unmount ───────────────────────────────────────
   useEffect(() => {
     return () => {
+      playbackIdRef.current += 1
+      _stopSource(sourceRef)
       audioCtxRef.current?.close()
       timingTimeoutsRef.current.forEach(clearTimeout)
     }
@@ -532,6 +550,7 @@ function _parseVRM(loader: GLTFLoader, bytes: ArrayBuffer, modelPath: string): P
 function _stopSource(ref: React.MutableRefObject<AudioBufferSourceNode | null>) {
   if (ref.current) {
     try {
+      ref.current.onended = null
       ref.current.stop()
       ref.current.disconnect()
     } catch {

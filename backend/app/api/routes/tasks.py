@@ -114,7 +114,7 @@ async def _generate_tasks(
 
     try:
         result = await db.execute(select(TaskTemplate).where(*filters))
-        templates = result.scalars().all()
+        templates = list(result.scalars().all())
     except SQLAlchemyError as exc:
         logger.error("DB error fetching templates: %s", exc)
         raise HTTPException(
@@ -128,14 +128,20 @@ async def _generate_tasks(
             detail="No active templates found for the selected category and difficulty.",
         )
 
-    # Shuffle so each generate call picks a different template first,
-    # giving variety when count=1 (the common student practice case).
-    templates = list(templates)
-    random.shuffle(templates)
+    if payload.template_ids:
+        selected_order = {tid: idx for idx, tid in enumerate(payload.template_ids)}
+        templates.sort(key=lambda tmpl: selected_order.get(tmpl.id, len(selected_order)))
+    else:
+        # Shuffle so each generate call picks a different template first,
+        # giving variety when count=1 (the common student practice case).
+        random.shuffle(templates)
 
     generated: list[dict] = []
-    for i in range(min(payload.count, len(templates) * 10)):
-        tmpl = templates[i % len(templates)]
+    attempts = 0
+    max_attempts = max(payload.count * 3, len(templates) * 10)
+    while len(generated) < payload.count and attempts < max_attempts:
+        tmpl = templates[attempts % len(templates)]
+        attempts += 1
         try:
             task = await asyncio.wait_for(
                 asyncio.to_thread(TaskGenerator.generate, tmpl.template_json, locale),
@@ -145,6 +151,8 @@ async def _generate_tasks(
                 "question_text": task.get("question_text", ""),
                 "condition_latex": task.get("condition_latex", ""),
                 "answer_latex": task.get("answer_latex", ""),
+                "template_id": str(tmpl.id),
+                "topic": task.get("topic") or tmpl.template_json.get("topic", ""),
             })
         except asyncio.TimeoutError:
             logger.error(

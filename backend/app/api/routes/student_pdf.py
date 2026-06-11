@@ -125,7 +125,7 @@ async def generate_study_guide_pdf(
         filters.append(TaskTemplate.id.in_(payload.template_ids))
 
     result = await db.execute(select(TaskTemplate).where(*filters))
-    templates = result.scalars().all()
+    templates = list(result.scalars().all())
 
     if not templates:
         raise HTTPException(
@@ -139,18 +139,28 @@ async def generate_study_guide_pdf(
     # ── 2. Generate tasks (before deducting tokens) ───────────────────────────
     # Tokens are charged only after we confirm at least one task generates
     # successfully — prevents charging users when all templates are broken.
-    import random as _random
     templates_list = list(templates)
-    _random.shuffle(templates_list)
+    if payload.template_ids:
+        selected_order = {tid: idx for idx, tid in enumerate(payload.template_ids)}
+        templates_list.sort(key=lambda tmpl: selected_order.get(tmpl.id, len(selected_order)))
+    else:
+        import random as _random
+        _random.shuffle(templates_list)
+
     generated: list[dict] = []
-    for i in range(min(payload.count, len(templates_list) * 10)):
-        tmpl = templates_list[i % len(templates_list)]
+    attempts = 0
+    max_attempts = max(payload.count * 3, len(templates_list) * 10)
+    while len(generated) < payload.count and attempts < max_attempts:
+        tmpl = templates_list[attempts % len(templates_list)]
+        attempts += 1
         try:
             task = TaskGenerator.generate(tmpl.template_json, locale=pdf_locale)
             generated.append({
                 "question_text":   task.get("question_text", ""),
                 "condition_latex": task.get("condition_latex", ""),
                 "answer_latex":    task.get("answer_latex", ""),
+                "template_id":      str(tmpl.id),
+                "topic":            task.get("topic") or tmpl.template_json.get("topic", ""),
             })
         except Exception as e:
             # Log once per template type (strip traceback for LaTeX-notation errors)

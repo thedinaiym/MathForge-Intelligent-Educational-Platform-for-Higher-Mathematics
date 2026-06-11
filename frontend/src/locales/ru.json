@@ -508,6 +508,9 @@
     "voice": {
       "textMode": "Текстовый режим",
       "voiceMode": "Голосовой режим",
+      "answerText": "Ответ текстом",
+      "answerAudio": "Ответ аудио",
+      "sendText": "Отправить текст",
       "holdToTalk": "Удержи чтобы говорить",
       "releaseToSend": "Отпусти чтобы отправить…",
       "listening": "Слушаю…",

@@ -507,6 +507,9 @@
     "voice": {
       "textMode": "Text mode",
       "voiceMode": "Voice mode",
+      "answerText": "Text answer",
+      "answerAudio": "Audio answer",
+      "sendText": "Send text",
       "holdToTalk": "Hold to talk",
       "releaseToSend": "Release to send…",
       "listening": "Listening…",

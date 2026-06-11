@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Mic, MicOff, Volume2 } from 'lucide-react'
+import { Keyboard, Loader2, Mic, MicOff, Send, Volume2 } from 'lucide-react'
 import AvatarTutor from './AvatarTutor'
 import { useWebSpeechSTT } from './useWebSpeechSTT'
 import type { TTSLanguage } from './useTTSSpeech'
@@ -33,6 +33,7 @@ interface VoiceTutorSessionProps {
 }
 
 type VoicePhase = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
+type ResponseMode = 'text' | 'audio'
 
 export default function VoiceTutorSession({
   lang,
@@ -51,10 +52,14 @@ export default function VoiceTutorSession({
 
   const [phase,    setPhase]    = useState<VoicePhase>('idle')
   const [history,  setHistory]  = useState<ChatMessage[]>([])
+  const [textInput, setTextInput] = useState('')
+  const [responseMode, setResponseMode] = useState<ResponseMode>('audio')
 
   const historyRef = useRef<ChatMessage[]>([])
+  const responseModeRef = useRef<ResponseMode>('audio')
 
   useEffect(() => { historyRef.current = history }, [history])
+  useEffect(() => { responseModeRef.current = responseMode }, [responseMode])
 
   const handleSTTEnd = useCallback(async () => {
     // Transcript логика
@@ -89,6 +94,13 @@ export default function VoiceTutorSession({
       historyRef.current = newHistory
       onAidaReply(reply)
 
+      if (responseModeRef.current === 'text') {
+        clear()
+        setPhase('idle')
+        return
+      }
+
+      window.speechSynthesis?.cancel()
       const ttsOk = await speakTimed(reply, lang, 'female')
       if (ttsOk) {
         setPhase('speaking')
@@ -113,6 +125,8 @@ export default function VoiceTutorSession({
 
   const handlePressStart = () => {
     if (phase === 'thinking' || phase === 'speaking') return
+    window.speechSynthesis?.cancel()
+    clear()
     stt.reset()
     stt.startListening()
     setPhase('listening')
@@ -126,6 +140,23 @@ export default function VoiceTutorSession({
       await submitToLLM(text)
     } else {
       setPhase('idle')
+    }
+  }
+
+  const handleTextSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const q = textInput.trim()
+    if (!q || phase === 'thinking' || phase === 'speaking') return
+    setTextInput('')
+    await submitToLLM(q)
+  }
+
+  const setAnswerMode = (mode: ResponseMode) => {
+    setResponseMode(mode)
+    if (mode === 'text') {
+      window.speechSynthesis?.cancel()
+      clear()
+      if (phase === 'speaking') setPhase('idle')
     }
   }
 
@@ -144,6 +175,7 @@ export default function VoiceTutorSession({
 
   const micBusy = phase === 'thinking' || isLoading
   const micActive = phase === 'listening'
+  const inputDisabled = phase === 'thinking' || phase === 'speaking'
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
@@ -160,6 +192,51 @@ export default function VoiceTutorSession({
           <span className="ml-1 text-amber-600 italic">"{stt.interimTranscript}"</span>
         )}
       </p>
+
+      <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1 text-[11px]">
+        <button
+          type="button"
+          onClick={() => setAnswerMode('text')}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 transition-colors ${
+            responseMode === 'text'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Keyboard size={13} />
+          {t('avatar.voice.answerText')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAnswerMode('audio')}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 transition-colors ${
+            responseMode === 'audio'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Volume2 size={13} />
+          {t('avatar.voice.answerAudio')}
+        </button>
+      </div>
+
+      <form onSubmit={handleTextSubmit} className="flex w-full items-center gap-2">
+        <input
+          value={textInput}
+          onChange={e => setTextInput(e.target.value)}
+          disabled={inputDisabled}
+          placeholder={t('avatar.placeholder')}
+          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-100 disabled:text-slate-400"
+        />
+        <button
+          type="submit"
+          disabled={inputDisabled || !textInput.trim()}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          title={t('avatar.voice.sendText')}
+        >
+          <Send size={16} />
+        </button>
+      </form>
 
       <button
         onMouseDown={handlePressStart}
