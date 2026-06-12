@@ -80,6 +80,12 @@ _SYSTEM: dict[str, str] = {
     ),
 }
 
+_LANGUAGE_INSTRUCTION: dict[str, str] = {
+    "en": "Answer only in English.",
+    "ru": "Отвечай только на русском языке.",
+    "kg": "Кыргыз тилинде гана жооп бер.",
+}
+
 # ── Route ─────────────────────────────────────────────────────────────────────
 
 @router.post("/guest-explain", response_model=ExplainResponse)
@@ -96,6 +102,7 @@ async def guest_explain(body: ExplainRequest) -> ExplainResponse:
         )
 
     system_prompt = _SYSTEM.get(body.language, _SYSTEM["ru"])
+    language_instruction = _LANGUAGE_INSTRUCTION.get(body.language, _LANGUAGE_INSTRUCTION["ru"])
 
     try:
         client = AsyncGroq(api_key=settings.groq_api_key)
@@ -103,6 +110,7 @@ async def guest_explain(body: ExplainRequest) -> ExplainResponse:
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system",  "content": system_prompt},
+                {"role": "system",  "content": language_instruction},
                 {"role": "user",    "content": body.question},
             ],
             max_tokens=200,
@@ -136,6 +144,7 @@ async def explain(
         )
 
     system_prompt = _SYSTEM.get(body.language, _SYSTEM["ru"])
+    language_instruction = _LANGUAGE_INSTRUCTION.get(body.language, _LANGUAGE_INSTRUCTION["ru"])
 
     try:
         client = AsyncGroq(api_key=settings.groq_api_key)
@@ -143,6 +152,7 @@ async def explain(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system",  "content": system_prompt},
+                {"role": "system",  "content": language_instruction},
                 {"role": "user",    "content": body.question},
             ],
             max_tokens=300,

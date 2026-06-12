@@ -28,10 +28,16 @@ class TaskGenerator:
             )
 
         coeffs = TaskGenerator._sample_coefficients(ranges, constraints)
+        substitutions = TaskGenerator._build_substitutions(coeffs)
 
         try:
             raw_expr = sp.sympify(sympy_expr_str, locals=_SAFE_LOCALS)
-            final_expr = raw_expr.subs(coeffs)
+            if not isinstance(raw_expr, sp.Expr):
+                raise ValueError(
+                    "sympy_expr must parse to a single SymPy expression, "
+                    f"got {type(raw_expr).__name__}"
+                )
+            final_expr = raw_expr.subs(substitutions)
             latex_expr = sp.latex(final_expr)
 
             q_texts = template_json.get("question_text") or template_json.get("texts", {})
@@ -50,7 +56,7 @@ class TaskGenerator:
                 equation_rhs = "0"
 
             if equation_rhs is not None and final_expr.free_symbols:
-                rhs_expr = sp.sympify(str(equation_rhs), locals=_SAFE_LOCALS)
+                rhs_expr = sp.sympify(str(equation_rhs), locals=_SAFE_LOCALS).subs(substitutions)
                 TaskGenerator._validate_supported_equation(final_expr, rhs_expr)
                 condition_latex = f"{latex_expr} = {sp.latex(rhs_expr)}"
 
@@ -126,6 +132,24 @@ class TaskGenerator:
                 return subs
 
         raise ValueError(f"Could not find valid coefficients after {max_attempts} attempts")
+
+    @staticmethod
+    def _build_substitutions(coefficients: dict) -> dict:
+        """
+        Build SymPy substitutions for declared coefficients.
+
+        Imported LLM templates sometimes use lowercase parameter names in
+        sympy_expr while ranges use the required uppercase names. Treat a
+        single-letter lowercase form as an alias for its uppercase coefficient
+        so templates like ``a*x + b`` still sample from ranges ``A`` and ``B``.
+        """
+        substitutions: dict = {}
+        for name, value in coefficients.items():
+            key = str(name)
+            substitutions[sp.Symbol(key)] = value
+            if len(key) == 1 and key.isalpha():
+                substitutions[sp.Symbol(key.lower())] = value
+        return substitutions
 
     @staticmethod
     def _validate_supported_equation(final_expr: sp.Expr, rhs_expr: sp.Expr) -> None:

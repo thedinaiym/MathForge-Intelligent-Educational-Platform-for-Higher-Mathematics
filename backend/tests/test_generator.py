@@ -206,3 +206,36 @@ class TestSampleCoefficientsDirectly:
             constraints=[],
         )
         assert "A" in coeffs and "B" in coeffs
+
+
+class TestImportedTemplateRobustness:
+    """Regression tests for malformed or inconsistent imported templates."""
+
+    def test_lowercase_expr_parameters_use_uppercase_ranges(self):
+        template = {
+            "topic": "linear_equation",
+            "sympy_expr": "a*x + b",
+            "ranges": {"A": [1, 1], "B": [2, 2]},
+            "constraints": [],
+            "equation_rhs": "0",
+            "texts": {"en": "Solve: {expr} = 0"},
+        }
+
+        result = TaskGenerator.generate(template, locale="en")
+
+        assert result["coefficients"] == {"A": 1, "B": 2}
+        assert result["solutions"] == [-2]
+        assert "a" not in result["answer_latex"]
+        assert "b" not in result["answer_latex"]
+
+    def test_tuple_sympy_expression_reports_clear_error(self):
+        template = {
+            "topic": "bad_tuple",
+            "sympy_expr": "x, 1",
+            "ranges": {},
+            "constraints": [],
+            "texts": {"en": "Compute: {expr}"},
+        }
+
+        with pytest.raises(RuntimeError, match="single SymPy expression"):
+            TaskGenerator.generate(template, locale="en")

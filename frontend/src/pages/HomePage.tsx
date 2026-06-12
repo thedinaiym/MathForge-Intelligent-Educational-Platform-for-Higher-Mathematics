@@ -25,6 +25,7 @@ import i18n from '../i18n'
 import AvatarTutor from '../components/avatar/AvatarTutor'
 import GuestChat from '../components/avatar/GuestChat'
 import { useTTSSpeech, type TTSLanguage } from '../components/avatar/useTTSSpeech'
+import { normalizeAvatarLanguage } from '../components/avatar/language'
 
 // ── Smooth-scroll helper ───────────────────────────────────────────────────────
 
@@ -105,8 +106,6 @@ function Navbar() {
 
 // ── Hero section ──────────────────────────────────────────────────────────────
 
-const LANG_MAP: Record<string, TTSLanguage> = { en: 'en', ru: 'ru', kg: 'kg', ky: 'kg' }
-
 const AIDA_GREETINGS: Record<string, string> = {
   en: "Hi! I'm Aida, your AI math tutor. Ask me anything!",
   ru: "Привет! Я Айда, ваш AI-репетитор по математике. Задайте любой вопрос!",
@@ -118,7 +117,7 @@ function Hero() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  const lang: TTSLanguage = LANG_MAP[i18n.resolvedLanguage ?? i18n.language ?? 'ru'] ?? 'ru'
+  const lang: TTSLanguage = normalizeAvatarLanguage(i18n.resolvedLanguage ?? i18n.language)
   const { audioUrl, wordBoundaries, speakTimed, clear } = useTTSSpeech()
 
   const [showSoundHint, setShowSoundHint] = useState(true)

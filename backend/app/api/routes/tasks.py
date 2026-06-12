@@ -11,7 +11,6 @@ import logging
 import random
 import re
 import uuid
-import traceback  # <--- ДОБАВЛЕНО ДЛЯ ЛОГИРОВАНИЯ ОШИБОК
 from datetime import date
 from pathlib import Path
 
@@ -168,12 +167,8 @@ async def _generate_tasks(
             )
             continue
         except Exception as e:
-            # === ИСПРАВЛЕННАЯ ЛОВУШКА ОШИБОК ===
-            print(f"🔥 ОШИБКА ГЕНЕРАЦИИ (Шаблон {tmpl.id}): {str(e)}", flush=True)
-            print(traceback.format_exc(), flush=True)
-            logger.error(f"Generation error for template {tmpl.id}: {e}")
+            logger.warning("Skipping template %s during task generation: %s", tmpl.id, e)
             continue
-            # ===================================
 
     if not generated:
         raise HTTPException(

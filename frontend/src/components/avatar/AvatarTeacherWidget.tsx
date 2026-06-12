@@ -4,14 +4,8 @@ import { Bot, ChevronDown, Keyboard, Loader2, Mic, Send, X } from 'lucide-react'
 import AvatarTutor from './AvatarTutor'
 import VoiceTutorSession from './VoiceTutorSession'
 import { useTTSSpeech, type TTSLanguage } from './useTTSSpeech'
+import { normalizeAvatarLanguage } from './language'
 import api from '../../lib/axios'
-
-const LANG_MAP: Record<string, TTSLanguage> = {
-  en: 'en',
-  ru: 'ru',
-  kg: 'kg',
-  ky: 'kg',
-}
 
 type Phase   = 'idle' | 'thinking' | 'speaking' | 'error'
 type UIMode  = 'text' | 'voice'
@@ -23,7 +17,7 @@ interface Message {
 
 export default function AvatarTeacherWidget() {
   const { i18n, t } = useTranslation()
-  const lang: TTSLanguage = LANG_MAP[i18n.language] ?? 'ru'
+  const lang: TTSLanguage = normalizeAvatarLanguage(i18n.resolvedLanguage ?? i18n.language)
 
   const [open,     setOpen]     = useState(false)
   const [mode,     setMode]     = useState<UIMode>('text')

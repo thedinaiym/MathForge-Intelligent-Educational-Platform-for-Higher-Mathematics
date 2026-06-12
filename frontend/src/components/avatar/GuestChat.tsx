@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Loader2, Send, Sparkles } from 'lucide-react'
 import i18n from '../../i18n'
+import { normalizeAvatarLanguage } from './language'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ interface GuestChatProps {
 
 function LimitModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
-  const lang = i18n.resolvedLanguage ?? 'ru'
+  const lang = normalizeAvatarLanguage(i18n.resolvedLanguage ?? i18n.language)
 
   const copy = {
     en: {
@@ -160,9 +161,6 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
     setMessages([{ role: 'aida', content: greeting }])
   }, [lang])
 
-  // Normalise BCP-47 variants (e.g. 'ky', 'ky-KG') to backend-accepted codes
-  const apiLang = ({ ky: 'kg' } as Record<string, string>)[lang.split('-')[0]] ?? lang
-
   const sendMessage = async (text: string) => {
     const q = text.trim()
     if (!q || thinking) return
@@ -181,7 +179,7 @@ export default function GuestChat({ lang, onAidaReply, onThinking }: GuestChatPr
       const res = await fetch(`${API_BASE}/avatar/guest-explain`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ question: q, language: apiLang }),
+        body:    JSON.stringify({ question: q, language: lang }),
       })
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
