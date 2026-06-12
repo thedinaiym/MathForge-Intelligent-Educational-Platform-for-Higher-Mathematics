@@ -10,8 +10,8 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         espeak-ng \
-        git \
         libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 

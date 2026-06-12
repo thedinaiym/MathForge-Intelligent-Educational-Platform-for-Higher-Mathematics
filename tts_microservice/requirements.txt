@@ -17,4 +17,3 @@ python-multipart>=0.0.9
 pydantic>=2.0.0
 edge-tts>=6.1.9
 huggingface_hub<0.26
-git+https://github.com/Akyl-AI/tts-mini.git
