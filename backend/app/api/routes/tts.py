@@ -53,6 +53,7 @@ class WordBoundary(BaseModel):
 
 class TTSTimedResponse(BaseModel):
     audio_base64:    str
+    audio_mime:      str = "audio/mpeg"
     word_boundaries: list[WordBoundary]
 
 
@@ -110,5 +111,6 @@ async def generate_with_timing(body: TTSRequest) -> TTSTimedResponse:
 
     return TTSTimedResponse(
         audio_base64    = base64.b64encode(audio).decode(),
+        audio_mime      = "audio/mpeg",
         word_boundaries = boundaries,
     )

@@ -6,8 +6,10 @@ POST /api/tasks/generate      — generate task list as JSON (LibraryPage inline
 POST /api/tasks/generate/pdf  — generate task list and compile to PDF (TeacherGenerator download)
 """
 import asyncio
+import json
 import logging
 import random
+import re
 import uuid
 import traceback  # <--- ДОБАВЛЕНО ДЛЯ ЛОГИРОВАНИЯ ОШИБОК
 from datetime import date
@@ -44,7 +46,11 @@ router = APIRouter()
 TOKEN_COST_PDF = 5.0
 TOKEN_COST_ADAPTIVE = 1.0   # cheap — JSON only, no PDF compilation
 TASK_GENERATION_TIMEOUT_SECONDS = 6.0
-
+_DIFFICULTY_LABELS: dict[str, dict[str, str]] = {
+    "en": {"easy": "Easy", "medium": "Medium", "hard": "Hard"},
+    "ru": {"easy": "Лёгкий", "medium": "Средний", "hard": "Сложный"},
+    "kg": {"easy": "Жеңил", "medium": "Орточо", "hard": "Татаал"},
+}
 
 async def _log_activity(user_id: uuid.UUID, db: AsyncSession) -> None:
     """Upsert daily heatmap counter for the given user."""
@@ -193,7 +199,7 @@ async def list_all_templates(
     return [
         {
             "id": str(t.id),
-            "title": t.get_title(locale),
+            "title": _resolve_locale_text(t.title_translations, locale) or t.get_title(locale),
             "difficulty": t.difficulty,
             "is_active": t.is_active,
             "topic": t.template_json.get("topic", ""),
@@ -330,6 +336,40 @@ def _apply_kg_topic_translation(title: str) -> str:
 
 # ── Route: list templates for a category (teacher topic cascade) ──────────────
 
+def _resolve_locale_text(value: object, locale: str) -> str:
+    """
+    Return one localized string from clean JSONB or legacy mixed strings.
+
+    Some imported rows may contain a whole multilingual payload inside one
+    title value, such as '{"en": "...", "ru": "..."}' or 'en: ... | ru: ...'.
+    The topic dropdown must show only the current interface language.
+    """
+    if isinstance(value, dict):
+        selected = value.get(locale) or value.get("ru") or value.get("en") or ""
+        return _resolve_locale_text(selected, locale)
+
+    text = str(value or "").strip()
+    if not text:
+        return ""
+
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError):
+        parsed = None
+    if isinstance(parsed, dict):
+        return _resolve_locale_text(parsed, locale)
+
+    matches = re.findall(
+        r"(?is)(?:^|[\n\r;|])\s*(en|ru|kg)\s*[:=-]\s*(.*?)(?=(?:[\n\r;|]\s*(?:en|ru|kg)\s*[:=-])|$)",
+        text,
+    )
+    if matches:
+        parts = {lang.lower(): body.strip() for lang, body in matches if body.strip()}
+        return parts.get(locale) or parts.get("ru") or parts.get("en") or text
+
+    return text
+
+
 @router.get("/templates", response_model=list[TaskTemplateInfo])
 async def list_templates(
     category_id: uuid.UUID,
@@ -349,7 +389,7 @@ async def list_templates(
     templates = result.scalars().all()
     items = []
     for t in templates:
-        title = t.get_title(locale)
+        title = _resolve_locale_text(t.title_translations, locale) or t.get_title(locale)
         if locale == "kg":
             title = _apply_kg_topic_translation(title)
         items.append(TaskTemplateInfo(id=t.id, title=title, difficulty=t.difficulty))
@@ -412,7 +452,10 @@ async def generate_tasks_pdf(
     )
     category = cat_result.scalar_one_or_none()
     category_name = category.get_name(locale) if category else "Worksheet"
-    difficulty_label = payload.difficulty.capitalize()
+    difficulty_label = _DIFFICULTY_LABELS.get(locale, _DIFFICULTY_LABELS["ru"]).get(
+        payload.difficulty,
+        payload.difficulty.capitalize(),
+    )
     title = f"{category_name} — {difficulty_label}"
 
     # Step 3 — SymPy task generation for each variant independently
@@ -426,6 +469,7 @@ async def generate_tasks_pdf(
         pdf_bytes = await compile_latex_to_pdf(
             title=title,
             variants_tasks=variants_tasks,
+            locale=locale,
         )
     except RuntimeError as exc:
         raise HTTPException(

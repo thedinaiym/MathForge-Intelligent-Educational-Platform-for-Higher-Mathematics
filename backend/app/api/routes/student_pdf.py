@@ -41,12 +41,13 @@ router = APIRouter()
 TOKEN_COST_STUDY_GUIDE = 3.0
 
 _DIFFICULTY_LABELS: dict[str, dict] = {
-    "en": {"easy": "Easy",   "medium": "Medium",  "hard": "Hard"},
-    "ru": {"easy": "Easy",   "medium": "Medium",  "hard": "Hard"},
+    "en": {"easy": "Easy", "medium": "Medium", "hard": "Hard"},
+    "ru": {"easy": "Лёгкий", "medium": "Средний", "hard": "Сложный"},
+    "kg": {"easy": "Жеңил", "medium": "Орточо", "hard": "Татаал"},
 }
-
-# pdflatex+T2A encoding does not support Kyrgyz-specific letters (Ng, Ue, barred-O).
-# For PDF content we silently fall back to Russian so LaTeX never sees them.
+# PDF content follows the interface locale where pdflatex can render it.
+# T2A/pdflatex is unreliable for Kyrgyz-specific Cyrillic letters, so Kyrgyz UI
+# uses Russian PDF text until the compiler is moved to XeLaTeX/LuaLaTeX.
 _PDF_LOCALE: dict[str, str] = {"kg": "ru"}
 
 
@@ -182,7 +183,6 @@ async def generate_study_guide_pdf(
     generated = generated[: payload.count]
 
     # ── 3. Deduct tokens now that we have real tasks ───────────────────────────
-    await _deduct_tokens(user_id, TOKEN_COST_STUDY_GUIDE, db)
 
     # ── 4. Resolve category name for the title ────────────────────────────────
     cat_result = await db.execute(select(Category).where(Category.id == payload.category_id))
@@ -212,6 +212,7 @@ async def generate_study_guide_pdf(
         # ============================================
 
     # ── 6. Log activity, return PDF ───────────────────────────────────────────
+    await _deduct_tokens(user_id, TOKEN_COST_STUDY_GUIDE, db)
     await _log_activity(user_id, db)
 
     filename = f"mathforge_studyguide_{payload.difficulty}_{len(generated)}q.pdf"

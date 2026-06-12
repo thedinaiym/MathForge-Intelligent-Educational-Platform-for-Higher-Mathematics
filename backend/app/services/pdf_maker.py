@@ -234,6 +234,14 @@ _jinja_env = jinja2.Environment(
 
 # ── Synchronous compilation (runs in thread pool) ─────────────────────────────
 
+def _extract_latex_diagnostic(stdout: str | None, stderr: str | None, log_text: str) -> str:
+    combined_log = "\n".join(part for part in [stdout, stderr, log_text] if part)
+    error_match = re.search(r"(?ms)^! .{0,1200}", combined_log)
+    if error_match:
+        return error_match.group(0).strip()
+    return combined_log[-3000:]
+
+
 def _compile_sync(latex_source: str) -> bytes:
     """
     Write *latex_source* to a temp .tex file, run pdflatex, and return the
@@ -284,9 +292,14 @@ def _compile_sync(latex_source: str) -> bytes:
         if result.returncode != 0 or not pdf_file.exists():
             log_file = tmppath / "worksheet.log"
             if log_file.exists():
-                log_tail = log_file.read_text(encoding="utf-8", errors="replace")[-3000:]
+                log_tail = _extract_latex_diagnostic(
+                    result.stdout,
+                    result.stderr,
+                    log_file.read_text(encoding="utf-8", errors="replace"),
+                )
             else:
-                log_tail = (result.stdout or result.stderr or "(no log output)")[-3000:]
+                log_text = result.stdout or result.stderr or "(no log output)"
+                log_tail = _extract_latex_diagnostic(result.stdout, result.stderr, log_text)
 
             raise RuntimeError(
                 f"pdflatex failed (exit {result.returncode}).\n"
@@ -404,6 +417,143 @@ async def compile_latex_to_pdf(
         "title": title,
         "variants": variants,
         "solutions": solutions,
+    }
+
+    template = _jinja_env.get_template("base_exam.tex")
+    latex_source = template.render(**context)
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _compile_sync, latex_source)
+# Locale-aware overrides. These definitions intentionally come last so they
+# replace the older PDF helpers above without touching the compilation code.
+_STUDY_GUIDE_LABELS_V2: dict[str, dict] = {
+    "en": {
+        "task_word": "Problems",
+        "instructions": (
+            "Solve each problem in the space provided. "
+            "The answer key is on the last page - try to solve all problems before looking."
+        ),
+        "answers_title": "Answer Key",
+        "condition_label": "Problem",
+        "answer_label": "Answer",
+    },
+    "ru": {
+        "task_word": "задач",
+        "instructions": (
+            "Решите каждую задачу в отведённом месте. "
+            "Ответы находятся на последней странице - "
+            "постарайтесь решить все задачи, прежде чем заглядывать туда."
+        ),
+        "answers_title": "Ответы и решения",
+        "condition_label": "Условие",
+        "answer_label": "Ответ",
+    },
+    "kg": {
+        "task_word": "тапшырма",
+        "instructions": (
+            "Ар бир тапшырманы берилген орунда чыгарыңыз. "
+            "Жооптор акыркы бетте - алгач өзүңүз чыгарып көрүңүз."
+        ),
+        "answers_title": "Жооптор жана чечимдер",
+        "condition_label": "Шарт",
+        "answer_label": "Жооп",
+    },
+}
+
+_EXAM_LABELS_V2: dict[str, dict] = {
+    "en": {
+        "variant_label": "Variant",
+        "appendix_title": "Appendix: Answers and Solutions",
+        "appendix_subtitle": "Answer key for the teacher",
+        "condition_label": "Problem",
+        "answer_label": "Answer",
+    },
+    "ru": {
+        "variant_label": "Вариант",
+        "appendix_title": "Приложение: ответы и решения",
+        "appendix_subtitle": "Ключ ответов для учителя",
+        "condition_label": "Условие",
+        "answer_label": "Ответ",
+    },
+    "kg": {
+        "variant_label": "Вариант",
+        "appendix_title": "Тиркеме: жооптор жана чечимдер",
+        "appendix_subtitle": "Мугалим үчүн жооптор",
+        "condition_label": "Шарт",
+        "answer_label": "Жооп",
+    },
+}
+
+
+async def compile_study_guide_to_pdf(
+    title: str,
+    tasks: list[dict],
+    difficulty_label: str = "Medium",
+    locale: str = "ru",
+) -> bytes:
+    """Render and compile a locale-aware student self-practice study guide."""
+    lbl = _STUDY_GUIDE_LABELS_V2.get(locale, _STUDY_GUIDE_LABELS_V2["ru"])
+    task_entries = [
+        {
+            "title": _latex_escape(t.get("question_text", "")),
+            "condition_latex": t.get("condition_latex", "") or r"0",
+            "answer_latex": t.get("answer_latex", "") or r"\text{---}",
+        }
+        for t in tasks
+    ]
+
+    context = {
+        "title": _latex_escape(title),
+        "count": len(task_entries),
+        "difficulty_label": _latex_escape(difficulty_label),
+        "tasks": task_entries,
+        **lbl,
+    }
+
+    template = _jinja_env.get_template("study_guide.tex")
+    latex_source = template.render(**context)
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _compile_sync, latex_source)
+
+
+async def compile_latex_to_pdf(
+    title: str,
+    variants_tasks: list[list[dict]],
+    locale: str = "ru",
+) -> bytes:
+    """Render and compile a locale-aware multi-variant teacher worksheet."""
+    lbl = _EXAM_LABELS_V2.get(locale, _EXAM_LABELS_V2["ru"])
+    variants = []
+    solutions = []
+
+    for v_idx, tasks in enumerate(variants_tasks, start=1):
+        variants.append({
+            "variant_num": v_idx,
+            "tasks": [
+                {
+                    "title": _latex_escape(t.get("question_text", "")),
+                    "condition_latex": t.get("condition_latex", ""),
+                }
+                for t in tasks
+            ],
+        })
+        solutions.append({
+            "variant_num": v_idx,
+            "answers": [
+                {
+                    "condition_latex": t.get("condition_latex", ""),
+                    "answer_latex": t.get("answer_latex", r"\text{---}"),
+                }
+                for t in tasks
+            ],
+        })
+
+    context = {
+        "title": _latex_escape(title),
+        "variants": variants,
+        "solutions": solutions,
+        **lbl,
     }
 
     template = _jinja_env.get_template("base_exam.tex")

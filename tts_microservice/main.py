@@ -91,6 +91,7 @@ class WordBoundary(BaseModel):
 
 class TTSTimedResponse(BaseModel):
     audio_base64:    str
+    audio_mime:      str = "audio/mpeg"
     duration_ms:     int
     word_boundaries: list[WordBoundary]
     language:        str
@@ -175,11 +176,13 @@ async def generate_speech(req: TTSRequest) -> Response:
             detail=f"TTS engine error: {exc}",
         )
 
-    filename = f"tts_{req.language}_{req.voice_type}.mp3"
+    media_type = _audio_mime(req.language)
+    extension = "wav" if media_type == "audio/wav" else "mp3"
+    filename = f"tts_{req.language}_{req.voice_type}.{extension}"
 
     return Response(
         content=mp3_bytes,
-        media_type="audio/mpeg",
+        media_type=media_type,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-TTS-Language": req.language,
@@ -217,10 +220,11 @@ async def generate_speech_with_timing(req: TTSRequest) -> TTSTimedResponse:
             detail=f"TTS engine error: {exc}",
         )
 
-    duration_ms = boundaries[-1].offset_ms + boundaries[-1].duration_ms if boundaries else 0
+    duration_ms = _last_boundary_end_ms(boundaries)
 
     return TTSTimedResponse(
         audio_base64    = base64.b64encode(audio_bytes).decode(),
+        audio_mime      = _audio_mime(req.language),
         duration_ms     = duration_ms,
         word_boundaries = boundaries,
         language        = req.language,
@@ -238,6 +242,19 @@ async def _dispatch_timed(req: TTSRequest) -> tuple[bytes, list[WordBoundary]]:
     else:
         raise ValueError(f"Unsupported language: {req.language}")
     return await synthesize_with_timing(req.text, req.voice_type)
+
+
+def _audio_mime(language: str) -> str:
+    return "audio/wav" if language == "kg" else "audio/mpeg"
+
+
+def _last_boundary_end_ms(boundaries: list[WordBoundary | dict]) -> int:
+    if not boundaries:
+        return 0
+    last = boundaries[-1]
+    if isinstance(last, dict):
+        return int(last.get("offset_ms", 0) + last.get("duration_ms", 0))
+    return int(last.offset_ms + last.duration_ms)
 
 
 async def _dispatch(req: TTSRequest) -> bytes:

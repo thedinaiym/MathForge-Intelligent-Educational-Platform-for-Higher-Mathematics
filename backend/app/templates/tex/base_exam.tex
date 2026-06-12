@@ -1,4 +1,5 @@
 \documentclass[12pt,a4paper]{article}
+\usepackage{cmap}
 \usepackage[utf8]{inputenc}
 \usepackage[T2A]{fontenc}
 \usepackage[russian,english]{babel}
@@ -24,74 +25,66 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\MFLogo\enspace\textbf{MathForge}}
-\rhead{\small\textit{{{ title }}}}
+\rhead{\small\textit{\VAR{title}}}
 \cfoot{\thepage}
 
 \begin{document}
 
-%% ══════════════════════════════════════════════════════════════
-%%  VARIANTS  (one page block per variant)
-%% ══════════════════════════════════════════════════════════════
-
-{% for var in variants %}
+\BLOCK{for var in variants}
 \begin{center}
     {\MFLogo\enspace\Large\bfseries MathForge} \\[4pt]
-    {\Large\bfseries {{ title }}} \\[4pt]
-    {\large Вариант~№\,{{ var.variant_num }}}
+    {\Large\bfseries \VAR{title}} \\[4pt]
+    {\large \VAR{variant_label}~\VAR{var.variant_num}}
 \end{center}
 \vspace{0.8cm}
 
 \begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}]
-{% for task in var.tasks %}
+\BLOCK{for task in var.tasks}
     \needspace{4\baselineskip}
-    \item {{ task.title }}
+    \item \VAR{task.title}
     \[
-        {{ task.condition_latex }}
+        \VAR{task.condition_latex}
     \]
     \vspace{1.2cm}
-{% endfor %}
+\BLOCK{endfor}
 \end{enumerate}
 
-{% if not loop.last %}
+\BLOCK{if not loop.last}
 \newpage
-{% endif %}
-{% endfor %}
-
-%% ══════════════════════════════════════════════════════════════
-%%  SOLUTIONS APPENDIX  (teacher copy — starts on a new page)
-%% ══════════════════════════════════════════════════════════════
+\BLOCK{endif}
+\BLOCK{endfor}
 
 \newpage
 
 \begin{center}
-    {\Large\bfseries Приложение: Ответы и решения} \\[2pt]
-    {\small\itshape (Appendix: Answers \& Step-by-Step Solutions)} \\[6pt]
-    {\normalsize\bfseries {{ title }}}
+    {\Large\bfseries \VAR{appendix_title}} \\[2pt]
+    {\small\itshape \VAR{appendix_subtitle}} \\[6pt]
+    {\normalsize\bfseries \VAR{title}}
 \end{center}
 
 \bigskip
 
-{% for sol in solutions %}
+\BLOCK{for sol in solutions}
 \needspace{6\baselineskip}
-{\large\bfseries Вариант~{{ sol.variant_num }}}
+{\large\bfseries \VAR{variant_label}~\VAR{sol.variant_num}}
 
 \begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=10pt]
-{% for item in sol.answers %}
+\BLOCK{for item in sol.answers}
     \item
-    \textbf{Уравнение:}
+    \textbf{\VAR{condition_label}:}
     \[
-        {{ item.condition_latex }}
+        \VAR{item.condition_latex}
     \]
-    \textbf{Ответ:}
+    \textbf{\VAR{answer_label}:}
     \[
-        {{ item.answer_latex }}
+        \VAR{item.answer_latex}
     \]
-{% endfor %}
+\BLOCK{endfor}
 \end{enumerate}
 
-{% if not loop.last %}
+\BLOCK{if not loop.last}
 \bigskip\hrule\bigskip
-{% endif %}
-{% endfor %}
+\BLOCK{endif}
+\BLOCK{endfor}
 
 \end{document}

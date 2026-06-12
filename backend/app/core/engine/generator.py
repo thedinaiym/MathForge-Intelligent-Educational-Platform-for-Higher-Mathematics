@@ -9,6 +9,7 @@ _SAFE_LOCALS = {name: sp.Symbol(name) for name in ["N", "I", "E", "O", "S", "C",
 
 # Detect LaTeX-notation expressions the LLM sometimes emits instead of Python/SymPy.
 _LATEX_EXPR_RE = re.compile(r"\\[a-zA-Z]")
+_UNRESOLVED_PLACEHOLDER_RE = re.compile(r"\{[A-Za-z][A-Za-z0-9_]*\}")
 
 
 class TaskGenerator:
@@ -43,7 +44,6 @@ class TaskGenerator:
             inferred_zero_equation = (
                 equation_rhs is None
                 and bool(final_expr.free_symbols)
-                and "{expr}" in q_template
                 and "= 0" in q_template
             )
             if inferred_zero_equation:
@@ -51,6 +51,7 @@ class TaskGenerator:
 
             if equation_rhs is not None and final_expr.free_symbols:
                 rhs_expr = sp.sympify(str(equation_rhs), locals=_SAFE_LOCALS)
+                TaskGenerator._validate_supported_equation(final_expr, rhs_expr)
                 condition_latex = f"{latex_expr} = {sp.latex(rhs_expr)}"
 
                 try:
@@ -78,8 +79,17 @@ class TaskGenerator:
                     **{str(k): v for k, v in coeffs.items()},
                     expr=f"${latex_expr}$",
                 )
-            except (KeyError, ValueError):
-                question_text = q_template
+            except (KeyError, ValueError) as exc:
+                raise RuntimeError(f"question text has unresolved placeholders: {exc}") from exc
+
+            TaskGenerator._validate_generated_payload(
+                question_text=question_text,
+                condition_latex=condition_latex,
+                answer_latex=answer_latex,
+                coefficients=coeffs,
+                final_expr=final_expr,
+                equation_rhs=equation_rhs,
+            )
 
             return {
                 "topic": topic,
@@ -116,3 +126,59 @@ class TaskGenerator:
                 return subs
 
         raise ValueError(f"Could not find valid coefficients after {max_attempts} attempts")
+
+    @staticmethod
+    def _validate_supported_equation(final_expr: sp.Expr, rhs_expr: sp.Expr) -> None:
+        x = sp.Symbol("x")
+        unsupported = (final_expr - rhs_expr).free_symbols - {x}
+        if unsupported:
+            names = ", ".join(sorted(str(s) for s in unsupported))
+            raise ValueError(f"unsupported symbolic parameters remain after sampling: {names}")
+
+        if x in (final_expr - rhs_expr).free_symbols:
+            try:
+                poly = sp.Poly(final_expr - rhs_expr, x)
+            except sp.PolynomialError as exc:
+                raise ValueError(
+                    "unsupported non-polynomial equation for automatic PDF generation"
+                ) from exc
+            if poly.degree() > 2:
+                raise ValueError(
+                    "unsupported equation degree for automatic PDF generation: "
+                    f"{poly.degree()}"
+                )
+
+    @staticmethod
+    def _validate_generated_payload(
+        *,
+        question_text: str,
+        condition_latex: str,
+        answer_latex: str,
+        coefficients: dict,
+        final_expr: sp.Expr,
+        equation_rhs: str | None,
+    ) -> None:
+        rendered = "\n".join([question_text, condition_latex, answer_latex])
+        unresolved = sorted(set(_UNRESOLVED_PLACEHOLDER_RE.findall(rendered)))
+        if unresolved:
+            raise ValueError(
+                "unresolved template placeholders in generated task: "
+                + ", ".join(unresolved)
+            )
+
+        allowed_symbols = {sp.Symbol("x")} if equation_rhs is not None else set()
+        unsupported = final_expr.free_symbols - allowed_symbols
+        if unsupported:
+            names = ", ".join(sorted(str(s) for s in unsupported))
+            raise ValueError(f"unsupported free symbols in generated task: {names}")
+
+        coeff_names = set(str(k) for k in coefficients)
+        leaked_coeffs = []
+        for name in coeff_names:
+            if re.search(rf"(?<![A-Za-z]){re.escape(name)}(?![A-Za-z])", answer_latex):
+                leaked_coeffs.append(name)
+        if leaked_coeffs:
+            raise ValueError(
+                "coefficient placeholders leaked into answer: "
+                + ", ".join(sorted(leaked_coeffs))
+            )

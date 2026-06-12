@@ -137,12 +137,13 @@ export function useTTSSpeech(): TTSSpeechHook {
 
       const json: {
         audio_base64:    string
+        audio_mime?:     string
         word_boundaries: WordBoundary[]
       } = await res.json()
 
       // Convert base64 → Blob → Object URL
       const bytes  = Uint8Array.from(atob(json.audio_base64), c => c.charCodeAt(0))
-      const blob   = new Blob([bytes], { type: 'audio/mpeg' })
+      const blob   = new Blob([bytes], { type: json.audio_mime ?? 'audio/mpeg' })
       const url    = URL.createObjectURL(blob)
 
       prevUrlRef.current = url

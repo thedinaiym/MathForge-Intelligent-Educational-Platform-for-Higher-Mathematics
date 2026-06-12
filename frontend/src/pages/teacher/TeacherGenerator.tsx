@@ -19,6 +19,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useBalance } from '../../hooks/useBalance'
 import { useUIStore } from '../../store/uiStore'
 import Button from '../../components/ui/Button'
+import { downloadPdfUrl, openPdfUrl } from '../../lib/pdfActions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,8 @@ function DifficultyPicker({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function TeacherGenerator() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'ru'
   const queryClient = useQueryClient()
   const { tokenBalance } = useUIStore()
   const { isLoading: balanceLoading } = useBalance()
@@ -207,7 +209,7 @@ export default function TeacherGenerator() {
   const { data: categories = [], isLoading: loadingCats } = useCategories()
 
   const { data: templates = [], isLoading: loadingTemplates } = useQuery<TemplateInfo[]>({
-    queryKey: ['templates', form.category_id],
+    queryKey: ['templates', form.category_id, locale],
     queryFn: async () => {
       const { data } = await api.get<TemplateInfo[]>('/tasks/templates', {
         params: { category_id: form.category_id },
@@ -456,16 +458,21 @@ export default function TeacherGenerator() {
           </p>
 
           <div className="flex gap-2 mb-3">
-            <a href={mutation.data} target="_blank" rel="noopener noreferrer" className="flex-1">
-              <Button variant="secondary" className="w-full justify-center">
-                <ExternalLink size={14} /> {t('teacher.openPdf')}
-              </Button>
-            </a>
-            <a href={mutation.data} download={`mathforge_${form.variant_count}v_${form.count}q.pdf`} className="flex-1">
-              <Button className="w-full justify-center">
-                <Download size={14} /> {t('teacher.download')}
-              </Button>
-            </a>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => openPdfUrl(mutation.data)}
+              className="flex-1 justify-center"
+            >
+              <ExternalLink size={14} /> {t('teacher.openPdf')}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => downloadPdfUrl(mutation.data, `mathforge_${form.variant_count}v_${form.count}q.pdf`)}
+              className="flex-1 justify-center"
+            >
+              <Download size={14} /> {t('teacher.download')}
+            </Button>
           </div>
 
           <button
